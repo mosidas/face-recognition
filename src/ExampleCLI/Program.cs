@@ -1,0 +1,252 @@
+using Recoginizer;
+
+class Program
+{
+  static async Task Main(string[] args)
+  {
+    Console.WriteLine("ONNX推論サンプル");
+    Console.WriteLine("================");
+
+    // 使用するタスクを選択
+    Console.WriteLine("1. 物体検出 (YOLO)");
+    Console.WriteLine("2. 顔認証");
+    Console.Write("選択してください (1 or 2): ");
+    var choice = Console.ReadLine();
+
+    switch (choice)
+    {
+      case "1":
+        await RunObjectDetection();
+        break;
+      case "2":
+        await RunFaceRecognition();
+        break;
+      default:
+        Console.WriteLine("無効な選択です");
+        break;
+    }
+  }
+
+  /// <summary>
+  /// 物体検出のサンプル
+  /// </summary>
+  static async Task RunObjectDetection()
+  {
+    Console.WriteLine("\n=== 物体検出デモ ===");
+
+    // モデルのパスと画像パスを入力
+    Console.Write("YOLOモデルファイルのパス (.onnx): ");
+    var modelPath = Console.ReadLine() ?? "";
+
+    Console.Write("検出する画像のパス: ");
+    var imagePath = Console.ReadLine() ?? "";
+
+    if (!File.Exists(modelPath) || !File.Exists(imagePath))
+    {
+      Console.WriteLine("ファイルが見つかりません");
+      return;
+    }
+
+    try
+    {
+      // YOLODetectorの初期化
+      using var detector = new YoloDetector(
+          modelPath,
+          CocoClassNames.Names,
+          confidenceThreshold: 0.5f,
+          nmsThreshold: 0.5f
+      );
+
+      // 物体検出の実行
+      Console.WriteLine("検出中...");
+      var detections = await detector.DetectAsync(imagePath);
+
+      // 結果の表示
+      Console.WriteLine($"\n検出された物体数: {detections.Count}");
+      foreach (var detection in detections)
+      {
+        Console.WriteLine($"- {detection.ClassName}: " +
+                        $"信頼度={detection.Confidence:F2}, " +
+                        $"位置=({detection.BBox.X:F0}, {detection.BBox.Y:F0}, " +
+                        $"{detection.BBox.Width:F0}, {detection.BBox.Height:F0})");
+      }
+
+      // 結果画像の保存（オプション）
+      await SaveDetectionResult(imagePath, detections);
+    }
+    catch (Exception ex)
+    {
+      Console.WriteLine($"エラー: {ex}");
+    }
+  }
+
+  /// <summary>
+  /// 顔認証のサンプル
+  /// </summary>
+  static async Task RunFaceRecognition()
+  {
+    Console.WriteLine("\n=== 顔認証デモ ===");
+
+    // モデルのパスを入力
+    Console.Write("顔検出モデルのパス (.onnx): ");
+    var detectorPath = Console.ReadLine() ?? "";
+
+    Console.Write("顔認識モデルのパス (.onnx): ");
+    var recognizerPath = Console.ReadLine() ?? "";
+
+    if (!File.Exists(detectorPath) || !File.Exists(recognizerPath))
+    {
+      Console.WriteLine("モデルファイルが見つかりません");
+      return;
+    }
+
+    // タスクの選択
+    Console.WriteLine("\n1. 顔照合（2つの画像を比較）");
+    Console.WriteLine("2. 顔識別（データベースから検索）");
+    Console.Write("選択してください (1 or 2): ");
+    var task = Console.ReadLine();
+
+    try
+    {
+      var recognizer = new FaceRecognizer(
+          detectorPath,
+          recognizerPath,
+          detectionThreshold: 0.7f,
+          recognitionThreshold: 0.6f
+      );
+
+      if (task == "1")
+      {
+        // 顔照合
+        Console.Write("1つ目の画像パス: ");
+        var image1 = Console.ReadLine() ?? "";
+
+        Console.Write("2つ目の画像パス: ");
+        var image2 = Console.ReadLine() ?? "";
+
+        Console.WriteLine("照合中...");
+        var result = await recognizer.VerifyFaceAsync(image1, image2);
+
+        Console.WriteLine($"\n結果: {result.Message}");
+        Console.WriteLine($"類似度: {result.Confidence:F3}");
+      }
+      else if (task == "2")
+      {
+        // 顔識別（データベース）
+        await RunFaceIdentification(recognizer);
+      }
+
+      recognizer.Dispose();
+    }
+    catch (Exception ex)
+    {
+      Console.WriteLine($"エラー: {ex}");
+    }
+  }
+
+  /// <summary>
+  /// 顔識別のデモ
+  /// </summary>
+  static async Task RunFaceIdentification(FaceRecognizer recognizer)
+  {
+    var database = new FaceDatabase();
+
+    Console.WriteLine("\n顔データベースに人物を登録します");
+    Console.Write("登録する人数: ");
+    var count = int.Parse(Console.ReadLine() ?? "0");
+
+    // 顔の登録
+    for (int i = 0; i < count; i++)
+    {
+      Console.WriteLine($"\n人物 {i + 1}:");
+      Console.Write("名前: ");
+      var name = Console.ReadLine() ?? $"Person{i + 1}";
+
+      Console.Write("画像パス: ");
+      var imagePath = Console.ReadLine() ?? "";
+
+      if (File.Exists(imagePath))
+      {
+        var faces = await recognizer.DetectFacesAsync(imagePath);
+        if (faces.Count > 0)
+        {
+          var face = faces.First();
+          var embedding = await recognizer.ExtractFaceEmbeddingAsync(imagePath, face.BBox);
+          database.RegisterFace($"person_{i}", name, embedding);
+          Console.WriteLine($"{name} を登録しました");
+        }
+        else
+        {
+          Console.WriteLine("顔が検出されませんでした");
+        }
+      }
+    }
+
+    // 識別テスト
+    Console.Write("\n識別する画像のパス: ");
+    var queryImage = Console.ReadLine() ?? "";
+
+    if (File.Exists(queryImage))
+    {
+      Console.WriteLine("識別中...");
+      var faces = await recognizer.DetectFacesAsync(queryImage);
+
+      if (faces.Count > 0)
+      {
+        var face = faces.First();
+        var embedding = await recognizer.ExtractFaceEmbeddingAsync(queryImage, face.BBox);
+        var result = database.IdentifyFace(embedding);
+
+        Console.WriteLine($"\n識別結果: {result.Name}");
+        Console.WriteLine($"信頼度: {result.Confidence:F3}");
+      }
+      else
+      {
+        Console.WriteLine("顔が検出されませんでした");
+      }
+    }
+  }
+
+  /// <summary>
+  /// 検出結果を画像として保存
+  /// </summary>
+  static Task SaveDetectionResult(string imagePath, List<Detection> detections)
+  {
+        Console.Write("\n結果画像を保存しますか？ (y/n): ");
+    if (Console.ReadLine()?.ToLower() == "y")
+    {
+      using var image = OpenCvSharp.Cv2.ImRead(imagePath);
+
+      foreach (var detection in detections)
+      {
+        var rect = new OpenCvSharp.Rect(
+            (int)detection.BBox.X,
+            (int)detection.BBox.Y,
+            (int)detection.BBox.Width,
+            (int)detection.BBox.Height
+        );
+
+        // バウンディングボックスを描画
+        OpenCvSharp.Cv2.Rectangle(image, rect, new OpenCvSharp.Scalar(0, 255, 0), 2);
+
+        // ラベルを描画
+        var label = $"{detection.ClassName}: {detection.Confidence:F2}";
+        OpenCvSharp.Cv2.PutText(
+            image,
+            label,
+            new OpenCvSharp.Point(rect.X, rect.Y - 5),
+            OpenCvSharp.HersheyFonts.HersheySimplex,
+            0.5,
+            new OpenCvSharp.Scalar(0, 255, 0),
+            1
+        );
+      }
+
+      var outputPath = Path.GetFileNameWithoutExtension(imagePath) + "_result.jpg";
+      OpenCvSharp.Cv2.ImWrite(outputPath, image);
+      Console.WriteLine($"結果を保存しました: {outputPath}");
+    }
+
+        return Task.CompletedTask;
+    }
+}

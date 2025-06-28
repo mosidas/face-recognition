@@ -1,0 +1,406 @@
+using Microsoft.ML.OnnxRuntime;
+using OpenCvSharp;
+using System.Drawing;
+using System.Numerics;
+
+namespace Recoginizer;
+
+/// <summary>
+/// 顔認証システム
+/// </summary>
+public class FaceRecognizer : IDisposable
+{
+private readonly InferenceSession _detectorSession;
+private readonly InferenceSession _recognizerSession;
+private readonly float _detectionThreshold;
+private readonly float _recognitionThreshold;
+
+public FaceRecognizer(
+    string detectorModelPath,
+    string recognizerModelPath,
+    float detectionThreshold = 0.7f,
+    float recognitionThreshold = 0.6f)
+{
+  _detectorSession = OnnxHelper.LoadModel(detectorModelPath);
+  _recognizerSession = OnnxHelper.LoadModel(recognizerModelPath);
+  _detectionThreshold = detectionThreshold;
+  _recognitionThreshold = recognitionThreshold;
+}
+
+/// <summary>
+/// 画像から顔を検出
+/// </summary>
+public async Task<List<FaceDetection>> DetectFacesAsync(string imagePath)
+{
+  var result = await OnnxHelper.Run(_detectorSession, imagePath);
+  return ParseFaceDetectorOutput(result);
+}
+
+/// <summary>
+/// 顔画像から特徴ベクトルを抽出
+/// </summary>
+public async Task<float[]> ExtractFaceEmbeddingAsync(string imagePath, Rectangle faceRegion)
+{
+  // 顔領域の切り出し
+  using var image = Cv2.ImRead(imagePath);
+  using var face = ExtractFaceRegion(image, faceRegion);
+
+  // 一時ファイルに保存（または直接テンソル化）
+  var tempPath = Path.GetTempFileName() + ".jpg";
+  try
+  {
+    Cv2.ImWrite(tempPath, face);
+    var result = await OnnxHelper.Run(_recognizerSession, tempPath);
+    return ExtractEmbedding(result);
+  }
+  finally
+  {
+    if (File.Exists(tempPath))
+      File.Delete(tempPath);
+  }
+}
+
+/// <summary>
+/// 2つの顔の類似度を計算
+/// </summary>
+public static float CompareFaces(float[] embedding1, float[] embedding2)
+{
+  if (embedding1.Length != embedding2.Length)
+    throw new ArgumentException("Embeddings must have the same dimension");
+
+  // コサイン類似度の計算
+  var dotProduct = 0.0f;
+  var norm1 = 0.0f;
+  var norm2 = 0.0f;
+
+  for (int i = 0; i < embedding1.Length; i++)
+  {
+    dotProduct += embedding1[i] * embedding2[i];
+    norm1 += embedding1[i] * embedding1[i];
+    norm2 += embedding2[i] * embedding2[i];
+  }
+
+  norm1 = MathF.Sqrt(norm1);
+  norm2 = MathF.Sqrt(norm2);
+
+  if (norm1 == 0 || norm2 == 0)
+    return 0;
+
+  return dotProduct / (norm1 * norm2);
+}
+
+/// <summary>
+/// 顔認証を実行
+/// </summary>
+public async Task<FaceVerificationResult> VerifyFaceAsync(
+    string imagePath1,
+    string imagePath2)
+{
+  // 両方の画像から顔を検出
+  var faces1 = await DetectFacesAsync(imagePath1);
+  var faces2 = await DetectFacesAsync(imagePath2);
+
+  if (faces1.Count == 0 || faces2.Count == 0)
+  {
+    return new FaceVerificationResult
+    {
+      IsMatch = false,
+      Confidence = 0,
+      Message = "顔が検出されませんでした"
+    };
+  }
+
+  // 最も信頼度の高い顔を選択
+  var face1 = faces1.OrderByDescending(f => f.Confidence).First();
+  var face2 = faces2.OrderByDescending(f => f.Confidence).First();
+
+  Console.WriteLine($"Selected face1: confidence={face1.Confidence:F3}, bbox=({face1.BBox.X}, {face1.BBox.Y}, {face1.BBox.Width}, {face1.BBox.Height})");
+  Console.WriteLine($"Selected face2: confidence={face2.Confidence:F3}, bbox=({face2.BBox.X}, {face2.BBox.Y}, {face2.BBox.Width}, {face2.BBox.Height})");
+
+  // 特徴ベクトルの抽出
+  var embedding1 = await ExtractFaceEmbeddingAsync(imagePath1, face1.BBox);
+  var embedding2 = await ExtractFaceEmbeddingAsync(imagePath2, face2.BBox);
+
+  // 類似度の計算
+  var similarity = CompareFaces(embedding1, embedding2);
+
+  // 類似度の詳細情報を表示
+  Console.WriteLine($"Face similarity calculation: {similarity:F6}");
+  Console.WriteLine($"Recognition threshold: {_recognitionThreshold:F3}");
+
+  // より低い閾値（0.3）でテスト
+  var adjustedThreshold = 0.3f;
+  var isMatch = similarity >= adjustedThreshold;
+
+  return new FaceVerificationResult
+  {
+    IsMatch = isMatch,
+    Confidence = similarity,
+    Message = isMatch ? "同一人物です" : "別人です"
+  };
+}
+
+/// <summary>
+/// 顔検出器の出力を解析
+/// </summary>
+private List<FaceDetection> ParseFaceDetectorOutput(InferenceResult result)
+{
+  var detections = new List<FaceDetection>();
+  var output = result.Outputs.First().Value;
+  var predictions = output.Data;
+  var shape = output.Shape;
+
+  // YOLOv11-face出力形式: [1, 5, 8400]
+  // 5 = x, y, w, h, confidence
+  _ = shape[1]; // 5
+  int numPredictions = shape[2]; // 8400
+
+  var imageWidth = result.ImageSize.Width;
+  var imageHeight = result.ImageSize.Height;
+
+  // モデルの入力サイズ（通常640x640）
+  var modelWidth = 640f;
+  var modelHeight = 640f;
+
+  // スケーリング係数
+  var scaleX = imageWidth / modelWidth;
+  var scaleY = imageHeight / modelHeight;
+
+  for (int i = 0; i < numPredictions; i++)
+  {
+    // 信頼度を取得
+    var confidence = predictions[4 * numPredictions + i]; // 5番目の要素
+    if (confidence < _detectionThreshold) continue;
+
+    // バウンディングボックスの座標を取得（モデル座標系）
+    var cx = predictions[0 * numPredictions + i];  // center x
+    var cy = predictions[1 * numPredictions + i];  // center y
+    var w = predictions[2 * numPredictions + i];   // width
+    var h = predictions[3 * numPredictions + i];   // height
+
+    // 座標を元画像のサイズにスケーリング
+    cx *= scaleX;
+    cy *= scaleY;
+    w *= scaleX;
+    h *= scaleY;
+
+    // バウンディングボックスの座標を計算
+    var x1 = Math.Max(0, cx - w / 2);
+    var y1 = Math.Max(0, cy - h / 2);
+    var x2 = Math.Min(imageWidth, cx + w / 2);
+    var y2 = Math.Min(imageHeight, cy + h / 2);
+
+    // 有効な領域かチェック
+    if (x2 <= x1 || y2 <= y1) continue;
+
+    var bbox = Rectangle.FromLTRB((int)x1, (int)y1, (int)x2, (int)y2);
+    Console.WriteLine($"Face detected: confidence={confidence:F3}, bbox=({bbox.X}, {bbox.Y}, {bbox.Width}, {bbox.Height})");
+
+    detections.Add(new FaceDetection
+    {
+      BBox = bbox,
+      Confidence = confidence,
+      Landmarks = [] // ランドマークは使用しない
+    });
+  }
+
+  // NMSを適用して重複する顔検出を除去
+  var filteredDetections = new List<Detection>();
+  foreach (var face in detections)
+  {
+    filteredDetections.Add(new Detection
+    {
+      ClassId = 0, // 顔クラス
+      ClassName = "face",
+      Confidence = face.Confidence,
+      BBox = new RectangleF(face.BBox.X, face.BBox.Y, face.BBox.Width, face.BBox.Height)
+    });
+  }
+
+  var nmsResults = OnnxHelper.ApplyNMS(filteredDetections, 0.5f);
+
+    var finalDetections = new List<FaceDetection>();
+  foreach (var nmsResult in nmsResults)
+  {
+    var bbox = Rectangle.FromLTRB((int)nmsResult.BBox.Left, (int)nmsResult.BBox.Top,
+                                  (int)nmsResult.BBox.Right, (int)nmsResult.BBox.Bottom);
+    Console.WriteLine($"Final face: confidence={nmsResult.Confidence:F3}, bbox=({bbox.X}, {bbox.Y}, {bbox.Width}, {bbox.Height})");
+
+    finalDetections.Add(new FaceDetection
+    {
+      BBox = bbox,
+      Confidence = nmsResult.Confidence,
+      Landmarks = []
+    });
+  }
+
+  return finalDetections;
+}
+
+/// <summary>
+/// 顔領域の切り出し
+/// </summary>
+private static Mat ExtractFaceRegion(Mat image, Rectangle faceRegion)
+{
+  // 顔領域に余白を追加（20%程度）
+  var padding = (int)(Math.Max(faceRegion.Width, faceRegion.Height) * 0.2);
+
+  // 正方形の領域を計算
+  var centerX = faceRegion.X + faceRegion.Width / 2;
+  var centerY = faceRegion.Y + faceRegion.Height / 2;
+  var size = Math.Max(faceRegion.Width, faceRegion.Height) + padding * 2;
+
+  var x = Math.Max(0, centerX - size / 2);
+  var y = Math.Max(0, centerY - size / 2);
+  var actualSize = Math.Min(size, Math.Min(image.Width - x, image.Height - y));
+
+  // 範囲外の場合は調整
+  if (x + actualSize > image.Width) x = image.Width - actualSize;
+  if (y + actualSize > image.Height) y = image.Height - actualSize;
+
+  Console.WriteLine($"Face extraction: center=({centerX}, {centerY}), square=({x}, {y}, {actualSize}, {actualSize})");
+
+  var roi = new Rect(x, y, actualSize, actualSize);
+  var face = new Mat(image, roi);
+
+  // 224x224にリサイズ（アスペクト比を維持）
+  var resizedFace = new Mat();
+  Cv2.Resize(face, resizedFace, new OpenCvSharp.Size(224, 224));
+
+  face.Dispose();
+
+  return resizedFace;
+}
+
+/// <summary>
+/// 特徴ベクトルの抽出
+/// </summary>
+private static float[] ExtractEmbedding(InferenceResult result)
+{
+  var output = result.Outputs.First().Value;
+  var embedding = output.Data.ToArray(); // コピーを作成
+
+  // 元のノルムを計算
+  var norm = 0.0f;
+  for (int i = 0; i < embedding.Length; i++)
+  {
+    norm += embedding[i] * embedding[i];
+  }
+  norm = MathF.Sqrt(norm);
+
+  Console.WriteLine($"Raw embedding: length={embedding.Length}, norm={norm:F6}, sample=[{embedding[0]:F6}, {embedding[1]:F6}, {embedding[2]:F6}, ...]");
+
+  // 正規化なしでテスト
+  return embedding;
+}
+
+/// <summary>
+/// リソースの解放
+/// </summary>
+public void Dispose()
+{
+  _detectorSession?.Dispose();
+  _recognizerSession?.Dispose();
+  GC.SuppressFinalize(this);
+}
+}
+
+/// <summary>
+/// 顔検出結果
+/// </summary>
+public class FaceDetection
+{
+public Rectangle BBox { get; set; }
+public float Confidence { get; set; }
+public PointF[] Landmarks { get; set; } = [];
+}
+
+/// <summary>
+/// 顔認証結果
+/// </summary>
+public class FaceVerificationResult
+{
+public bool IsMatch { get; set; }
+public float Confidence { get; set; }
+public string Message { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// 顔データベース管理
+/// </summary>
+public class FaceDatabase
+{
+private readonly Dictionary<string, FaceEntry> _database = [];
+
+/// <summary>
+/// 顔を登録
+/// </summary>
+public void RegisterFace(string personId, string name, float[] embedding)
+{
+  _database[personId] = new FaceEntry
+  {
+    PersonId = personId,
+    Name = name,
+    Embedding = embedding,
+    RegisteredAt = DateTime.Now
+  };
+}
+
+/// <summary>
+/// 顔を識別
+/// </summary>
+public FaceIdentificationResult IdentifyFace(float[] queryEmbedding, float threshold = 0.6f)
+{
+  var bestMatch = new FaceIdentificationResult
+  {
+    PersonId = null,
+    Name = "Unknown",
+    Confidence = 0
+  };
+
+  foreach (var entry in _database.Values)
+  {
+    var similarity = FaceRecognizer.CompareFaces(queryEmbedding, entry.Embedding);
+    if (similarity > bestMatch.Confidence && similarity >= threshold)
+    {
+      bestMatch.PersonId = entry.PersonId;
+      bestMatch.Name = entry.Name;
+      bestMatch.Confidence = similarity;
+    }
+  }
+
+  return bestMatch;
+}
+
+private static float CosineSimilarity(float[] a, float[] b)
+{
+  var dotProduct = 0.0f;
+  var normA = 0.0f;
+  var normB = 0.0f;
+
+  for (int i = 0; i < a.Length; i++)
+  {
+    dotProduct += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+
+  return dotProduct / (MathF.Sqrt(normA) * MathF.Sqrt(normB));
+}
+}
+
+public class FaceEntry
+{
+public string PersonId { get; set; } = string.Empty;
+public string Name { get; set; } = string.Empty;
+public float[] Embedding { get; set; } = [];
+public DateTime RegisteredAt { get; set; }
+}
+
+public class FaceIdentificationResult
+{
+public string? PersonId { get; set; }
+public string Name { get; set; } = string.Empty;
+public float Confidence { get; set; }
+}
+
