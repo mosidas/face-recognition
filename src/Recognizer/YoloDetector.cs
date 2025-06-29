@@ -1,7 +1,7 @@
 using Microsoft.ML.OnnxRuntime;
 using System.Drawing;
 
-namespace Recoginizer;
+namespace Recognizer;
 
 /// <summary>
 /// YOLO物体検出器
@@ -13,7 +13,7 @@ private readonly string[] _classNames;
 private readonly float _confidenceThreshold;
 private readonly float _nmsThreshold;
 
-public YoloDetector(string modelPath, string[] classNames, float confidenceThreshold = 0.5f, float nmsThreshold = 0.5f)
+public YoloDetector(string modelPath, string[] classNames, float confidenceThreshold = Constants.Thresholds.DefaultObjectDetectionThreshold, float nmsThreshold = Constants.Thresholds.DefaultNmsThreshold)
 {
   _session = OnnxHelper.LoadModel(modelPath);
   _classNames = classNames;
@@ -46,14 +46,14 @@ public async Task<List<Detection>> DetectAsync(string imagePath)
 
         int numValues = shape[1]; // 84
         int numPredictions = shape[2]; // 8400
-        int numClasses = numValues - 4; // 80 classes
+        int numClasses = numValues - Constants.YoloOutput.BoundingBoxDimensions; // 80 classes
 
         var imageWidth = result.ImageSize.Width;
         var imageHeight = result.ImageSize.Height;
 
         // モデルの入力サイズ（YOLOv11は通常640x640）
-        var modelWidth = 640f;
-        var modelHeight = 640f;
+        var modelWidth = (float)Constants.ImageProcessing.YoloInputWidth;
+        var modelHeight = (float)Constants.ImageProcessing.YoloInputHeight;
 
         // スケーリング係数
         var scaleX = imageWidth / modelWidth;

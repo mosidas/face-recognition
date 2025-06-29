@@ -3,7 +3,7 @@ using Microsoft.ML.OnnxRuntime.Tensors;
 using OpenCvSharp;
 using System.Drawing;
 
-namespace Recoginizer;
+namespace Recognizer;
 
 public class OnnxHelper
 {
@@ -105,11 +105,11 @@ public class OnnxHelper
     var (channels, height, width) = GetImageDimensions(inputShape);
 
             // 画像のリサイズ
-        var resized = new Mat();
+        using var resized = new Mat();
         Cv2.Resize(image, resized, new OpenCvSharp.Size(width, height));
 
         // BGRからRGBへの変換
-        var rgb = new Mat();
+        using var rgb = new Mat();
         Cv2.CvtColor(resized, rgb, ColorConversionCodes.BGR2RGB);
 
         // 正規化とテンソル化
@@ -122,15 +122,13 @@ public class OnnxHelper
                 var pixel = rgb.At<Vec3b>(y, x);
 
                 // 一般的な正規化 (0-255 -> 0-1) - すべてのモデルで統一
-                tensor[0, 0, y, x] = pixel[0] / 255.0f;  // R
-                tensor[0, 1, y, x] = pixel[1] / 255.0f;  // G
-                tensor[0, 2, y, x] = pixel[2] / 255.0f;  // B
+                tensor[0, 0, y, x] = pixel[0] / Constants.ImageProcessing.NormalizationMaxValue;  // R
+                tensor[0, 1, y, x] = pixel[1] / Constants.ImageProcessing.NormalizationMaxValue;  // G
+                tensor[0, 2, y, x] = pixel[2] / Constants.ImageProcessing.NormalizationMaxValue;  // B
             }
         }
 
-        // Matオブジェクトの解放
-        resized.Dispose();
-        rgb.Dispose();
+        // Matオブジェクトの解放は自動で実行される
 
     return tensor;
   }
@@ -190,7 +188,7 @@ public class OnnxHelper
   /// <summary>
   /// バウンディングボックスのNMS（Non-Maximum Suppression）処理
   /// </summary>
-  public static List<Detection> ApplyNMS(List<Detection> detections, float nmsThreshold = 0.5f)
+  public static List<Detection> ApplyNMS(List<Detection> detections, float nmsThreshold = Constants.Thresholds.DefaultNmsThreshold)
   {
     if (detections.Count == 0) return detections;
 

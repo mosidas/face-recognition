@@ -1,4 +1,5 @@
-using Recoginizer;
+using Recognizer;
+using static Recognizer.Constants;
 
 class Program
 {
@@ -53,8 +54,8 @@ class Program
       using var detector = new YoloDetector(
           modelPath,
           CocoClassNames.Names,
-          confidenceThreshold: 0.5f,
-          nmsThreshold: 0.5f
+          confidenceThreshold: Constants.Thresholds.DefaultObjectDetectionThreshold,
+          nmsThreshold: Constants.Thresholds.DefaultNmsThreshold
       );
 
       // 物体検出の実行
@@ -111,8 +112,8 @@ class Program
       var recognizer = new FaceRecognizer(
           detectorPath,
           recognizerPath,
-          detectionThreshold: 0.7f,
-          recognitionThreshold: 0.6f
+          detectionThreshold: Constants.Thresholds.DefaultFaceDetectionThreshold,
+          recognitionThreshold: Constants.Thresholds.DefaultFaceRecognitionThreshold
       );
 
       if (task == "1")
@@ -242,7 +243,7 @@ class Program
         );
       }
 
-      var outputPath = Path.GetFileNameWithoutExtension(imagePath) + "_result.jpg";
+      var outputPath = Path.GetFileNameWithoutExtension(imagePath) + Constants.Files.ResultImageSuffix;
       OpenCvSharp.Cv2.ImWrite(outputPath, image);
       Console.WriteLine($"結果を保存しました: {outputPath}");
     }

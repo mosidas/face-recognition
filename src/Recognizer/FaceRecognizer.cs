@@ -3,7 +3,7 @@ using OpenCvSharp;
 using System.Drawing;
 using System.Numerics;
 
-namespace Recoginizer;
+namespace Recognizer;
 
 /// <summary>
 /// 顔認証システム
@@ -18,8 +18,8 @@ private readonly float _recognitionThreshold;
 public FaceRecognizer(
     string detectorModelPath,
     string recognizerModelPath,
-    float detectionThreshold = 0.7f,
-    float recognitionThreshold = 0.6f)
+    float detectionThreshold = Constants.Thresholds.DefaultFaceDetectionThreshold,
+    float recognitionThreshold = Constants.Thresholds.DefaultFaceRecognitionThreshold)
 {
   _detectorSession = OnnxHelper.LoadModel(detectorModelPath);
   _recognizerSession = OnnxHelper.LoadModel(recognizerModelPath);
@@ -45,19 +45,12 @@ public async Task<float[]> ExtractFaceEmbeddingAsync(string imagePath, Rectangle
   using var image = Cv2.ImRead(imagePath);
   using var face = ExtractFaceRegion(image, faceRegion);
 
-  // 一時ファイルに保存（または直接テンソル化）
-  var tempPath = Path.GetTempFileName() + ".jpg";
-  try
-  {
-    Cv2.ImWrite(tempPath, face);
-    var result = await OnnxHelper.Run(_recognizerSession, tempPath);
-    return ExtractEmbedding(result);
-  }
-  finally
-  {
-    if (File.Exists(tempPath))
-      File.Delete(tempPath);
-  }
+  // セキュアな一時ファイル作成
+  using var tempFile = new TempImageFile();
+  Cv2.ImWrite(tempFile.Path, face);
+  
+  var result = await OnnxHelper.Run(_recognizerSession, tempFile.Path);
+  return ExtractEmbedding(result);
 }
 
 /// <summary>
@@ -128,9 +121,8 @@ public async Task<FaceVerificationResult> VerifyFaceAsync(
   Console.WriteLine($"Face similarity calculation: {similarity:F6}");
   Console.WriteLine($"Recognition threshold: {_recognitionThreshold:F3}");
 
-  // より低い閾値（0.3）でテスト
-  var adjustedThreshold = 0.3f;
-  var isMatch = similarity >= adjustedThreshold;
+  // 設定された認識閾値を使用
+  var isMatch = similarity >= _recognitionThreshold;
 
   return new FaceVerificationResult
   {
@@ -159,8 +151,8 @@ private List<FaceDetection> ParseFaceDetectorOutput(InferenceResult result)
   var imageHeight = result.ImageSize.Height;
 
   // モデルの入力サイズ（通常640x640）
-  var modelWidth = 640f;
-  var modelHeight = 640f;
+  var modelWidth = (float)Constants.ImageProcessing.YoloInputWidth;
+  var modelHeight = (float)Constants.ImageProcessing.YoloInputHeight;
 
   // スケーリング係数
   var scaleX = imageWidth / modelWidth;
@@ -217,7 +209,7 @@ private List<FaceDetection> ParseFaceDetectorOutput(InferenceResult result)
     });
   }
 
-  var nmsResults = OnnxHelper.ApplyNMS(filteredDetections, 0.5f);
+  var nmsResults = OnnxHelper.ApplyNMS(filteredDetections, Constants.Thresholds.DefaultNmsThreshold);
 
     var finalDetections = new List<FaceDetection>();
   foreach (var nmsResult in nmsResults)
@@ -243,7 +235,7 @@ private List<FaceDetection> ParseFaceDetectorOutput(InferenceResult result)
 private static Mat ExtractFaceRegion(Mat image, Rectangle faceRegion)
 {
   // 顔領域に余白を追加（20%程度）
-  var padding = (int)(Math.Max(faceRegion.Width, faceRegion.Height) * 0.2);
+  var padding = (int)(Math.Max(faceRegion.Width, faceRegion.Height) * Constants.ImageProcessing.FacePaddingRatio);
 
   // 正方形の領域を計算
   var centerX = faceRegion.X + faceRegion.Width / 2;
@@ -261,13 +253,11 @@ private static Mat ExtractFaceRegion(Mat image, Rectangle faceRegion)
   Console.WriteLine($"Face extraction: center=({centerX}, {centerY}), square=({x}, {y}, {actualSize}, {actualSize})");
 
   var roi = new Rect(x, y, actualSize, actualSize);
-  var face = new Mat(image, roi);
+  using var face = new Mat(image, roi);
 
   // 224x224にリサイズ（アスペクト比を維持）
   var resizedFace = new Mat();
-  Cv2.Resize(face, resizedFace, new OpenCvSharp.Size(224, 224));
-
-  face.Dispose();
+  Cv2.Resize(face, resizedFace, new OpenCvSharp.Size(Constants.ImageProcessing.FaceRecognitionInputSize, Constants.ImageProcessing.FaceRecognitionInputSize));
 
   return resizedFace;
 }
@@ -372,21 +362,6 @@ public FaceIdentificationResult IdentifyFace(float[] queryEmbedding, float thres
   return bestMatch;
 }
 
-private static float CosineSimilarity(float[] a, float[] b)
-{
-  var dotProduct = 0.0f;
-  var normA = 0.0f;
-  var normB = 0.0f;
-
-  for (int i = 0; i < a.Length; i++)
-  {
-    dotProduct += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
-  }
-
-  return dotProduct / (MathF.Sqrt(normA) * MathF.Sqrt(normB));
-}
 }
 
 public class FaceEntry

@@ -4,7 +4,7 @@ VisualStudioVersion = 17.5.002.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{F7DA8A79-BE02-4B16-814B-A26AD3223D97}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Recoginizer", "src\Recoginizer\Recoginizer.csproj", "{C1AA3962-3DCE-4E01-A7F7-0EC9316FCA7C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Recognizer", "src\Recognizer\Recognizer.csproj", "{C1AA3962-3DCE-4E01-A7F7-0EC9316FCA7C}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ExampleCLI", "src\ExampleCLI\ExampleCLI.csproj", "{D2E9B4F1-3DCE-4E01-A7F7-0EC9316FCA7D}"
 EndProject
