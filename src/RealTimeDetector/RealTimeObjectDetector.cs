@@ -26,16 +26,11 @@ public sealed class RealTimeObjectDetector(YoloDetector detector, VideoCapture c
 
             frameCount++;
 
-            // 物体検出の実行
             var detections = DetectObjects(frame);
-
-            // 結果を描画
             DrawDetections(frame, detections);
-
-            // フレームを表示
             Cv2.ImShow(_windowName, frame);
 
-            // FPS計算と表示（30フレームごと）
+            // ユーザー体験向上のため定期的にパフォーマンス表示
             if (frameCount % 30 == 0)
             {
                 var elapsed = DateTime.Now - startTime;
@@ -43,9 +38,8 @@ public sealed class RealTimeObjectDetector(YoloDetector detector, VideoCapture c
                 Console.WriteLine($"Detection FPS: {currentFps:F1}");
             }
 
-            // キー入力チェック
             var key = Cv2.WaitKey(1);
-            if (key == 'q' || key == 'Q' || key == 27) // 'q' or ESC
+            if (key == 'q' || key == 'Q' || key == 27)
             {
                 Console.WriteLine("Quit requested by user");
                 break;
@@ -62,7 +56,7 @@ public sealed class RealTimeObjectDetector(YoloDetector detector, VideoCapture c
 
         try
         {
-            // 一時ファイル不要でMatを直接使用（パフォーマンス向上）
+            // I/O処理削減によるリアルタイム性向上のためMat直接使用
             var detectionTask = _detector.DetectAsync(frame);
             var result = detectionTask.GetAwaiter().GetResult();
 
@@ -86,10 +80,8 @@ public sealed class RealTimeObjectDetector(YoloDetector detector, VideoCapture c
                 (int)detection.BBox.Height
             );
 
-            // バウンディングボックスを描画
             Cv2.Rectangle(frame, rect, new Scalar(0, 255, 0), 2);
 
-            // ラベルを描画
             var label = $"{detection.ClassName}: {detection.Confidence:F2}";
             Cv2.PutText(
                 frame,

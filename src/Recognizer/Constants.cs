@@ -6,7 +6,6 @@ public static class Constants
     {
         public const int YoloInputWidth = 640;
         public const int YoloInputHeight = 640;
-
         public const int FaceRecognitionInputSize = 224;
         public const float FacePaddingRatio = 0.2f;
         public const float NormalizationMaxValue = 255.0f;
@@ -22,15 +21,11 @@ public static class Constants
 
     public static class YoloOutput
     {
-        public const int PredictionCount = 8400;
         public const int BoundingBoxDimensions = 4;
-        public const int CocoClassCount = 80;
-        public const int FaceDetectionFeatureCount = 5;
     }
 
     public static class Files
     {
-        public const string TempImageExtension = ".jpg";
         public const string ResultImageSuffix = "_result.jpg";
     }
 }

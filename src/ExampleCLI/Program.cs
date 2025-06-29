@@ -112,12 +112,22 @@ internal sealed class Program
     private static async Task HandleFaceVerification(FaceRecognizer recognizer)
     {
         Console.Write("1つ目の画像パス: ");
-        var image1 = Console.ReadLine() ?? "";
+        var image1Path = Console.ReadLine() ?? "";
 
         Console.Write("2つ目の画像パス: ");
-        var image2 = Console.ReadLine() ?? "";
+        var image2Path = Console.ReadLine() ?? "";
+
+        if (!File.Exists(image1Path) || !File.Exists(image2Path))
+        {
+            Console.WriteLine("画像ファイルが見つかりません");
+            return;
+        }
 
         Console.WriteLine("照合中...");
+
+        using var image1 = OpenCvSharp.Cv2.ImRead(image1Path);
+        using var image2 = OpenCvSharp.Cv2.ImRead(image2Path);
+
         var result = await recognizer.VerifyFaceAsync(image1, image2).ConfigureAwait(false);
 
         Console.WriteLine($"\n結果: {result.Message}");

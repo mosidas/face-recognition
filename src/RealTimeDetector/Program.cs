@@ -66,7 +66,6 @@ class Program
 
         try
         {
-            // モデルファイルの確認（物体検出有効な場合）
             if (enableDetection)
             {
                 if (!File.Exists(modelPath!))
@@ -75,12 +74,10 @@ class Program
                     return 1;
                 }
 
-                // YOLO検出器を初期化
                 detector = new YoloDetector(modelPath!, CocoClassNames.Names, confidenceThreshold, nmsThreshold);
                 Console.WriteLine("YOLO detector initialized successfully.");
             }
 
-            // カメラキャプチャを初期化
             capture = new VideoCapture(cameraIndex);
             if (!capture.IsOpened())
             {
@@ -89,7 +86,6 @@ class Program
                 return 1;
             }
 
-            // カメラ情報を表示
             var frameWidth = (int)capture.Get(VideoCaptureProperties.FrameWidth);
             var frameHeight = (int)capture.Get(VideoCaptureProperties.FrameHeight);
             var fps = capture.Get(VideoCaptureProperties.Fps);
@@ -152,7 +148,7 @@ class Program
 
             Cv2.ImShow("Camera Test", frame);
 
-            // パフォーマンス監視のため30フレームごとにFPS表示
+            // デバッグとパフォーマンス確認のため定期的にFPS表示
             if (frameCount % 30 == 0)
             {
                 var elapsed = DateTime.Now - startTime;

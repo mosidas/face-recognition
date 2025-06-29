@@ -9,7 +9,6 @@ public static class OnnxHelper
 {
     public static InferenceSession LoadModel(string modelPath)
     {
-        // SessionOptionsの設定
         var sessionOptions = new SessionOptions
         {
             GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_EXTENDED,
@@ -24,36 +23,28 @@ public static class OnnxHelper
         }
         catch
         {
-            // フォールバック処理
+            // CUDA利用不可時はCPU推論にフォールバック（環境依存エラー回避）
         }
 
-        // TODO: デバッグ情報の出力制御機能が必要
-        var session = new InferenceSession(modelPath, sessionOptions);
-
-        return session;
+        return new InferenceSession(modelPath, sessionOptions);
     }
 
     public static async Task<InferenceResult> Run(InferenceSession session, Mat inputImage, CancellationToken cancellationToken = default)
     {
         return await Task.Run(() =>
         {
-            // 入力メタデータの取得
             var inputMeta = session.InputMetadata.First();
             var inputName = inputMeta.Key;
             var inputShape = inputMeta.Value.Dimensions;
 
-            // 画像の前処理
             var inputTensor = PreprocessImage(inputImage, inputShape);
 
-            // 推論の実行
             var inputs = new List<NamedOnnxValue>
             {
                 NamedOnnxValue.CreateFromTensor(inputName, inputTensor)
             };
 
             using var results = session.Run(inputs);
-
-            // 結果の処理
             return ProcessResults(results, inputImage.Size());
         }, cancellationToken).ConfigureAwait(false);
     }
@@ -80,7 +71,7 @@ public static class OnnxHelper
         using var resized = new Mat();
         Cv2.Resize(image, resized, new OpenCvSharp.Size(width, height));
 
-        // OpenCVのBGR形式をRGBに変換（ONNXモデルの標準）
+        // ONNXモデルはRGB入力が標準のためBGRから変換
         using var rgb = new Mat();
         Cv2.CvtColor(resized, rgb, ColorConversionCodes.BGR2RGB);
         var tensor = new DenseTensor<float>(new[] { batchSize, channels, height, width });
@@ -91,7 +82,6 @@ public static class OnnxHelper
             {
                 var pixel = rgb.At<Vec3b>(y, x);
 
-                // 0-255を0-1に正規化（すべてのモデルで統一）
                 tensor[0, 0, y, x] = pixel[0] / Constants.ImageProcessing.NormalizationMaxValue;
                 tensor[0, 1, y, x] = pixel[1] / Constants.ImageProcessing.NormalizationMaxValue;
                 tensor[0, 2, y, x] = pixel[2] / Constants.ImageProcessing.NormalizationMaxValue;
@@ -103,12 +93,12 @@ public static class OnnxHelper
 
     private static (int channels, int height, int width) GetImageDimensions(int[] inputShape)
     {
-        // NCHW形式 (batch, channels, height, width)
+        // PyTorchモデル等で一般的なNCHW形式 (batch, channels, height, width)
         if (inputShape.Length == 4 && (inputShape[1] == 3 || inputShape[1] == 1))
         {
             return (inputShape[1], inputShape[2], inputShape[3]);
         }
-        // NHWC形式 (batch, height, width, channels)
+        // TensorFlowモデル等で一般的なNHWC形式 (batch, height, width, channels)
         else if (inputShape.Length == 4 && (inputShape[3] == 3 || inputShape[3] == 1))
         {
             return (inputShape[3], inputShape[1], inputShape[2]);
@@ -195,5 +185,5 @@ public record Detection
     public required string ClassName { get; init; }
     public required float Confidence { get; init; }
     public required RectangleF BBox { get; init; }
-    public float[]? Embedding { get; init; } // 顔認証用の特徴ベクトル
+    public float[]? Embedding { get; init; }
 }

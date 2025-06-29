@@ -31,14 +31,13 @@ public sealed class YoloDetector(
         var detections = new List<Detection>();
 
         // YOLOv8/v11の特殊な出力形式に対応
-        // 84 = 4 (x,y,w,h) + 80 classes, 8400 = 検出候補数
         var output = result.Outputs.First().Value;
         var predictions = output.Data;
         var shape = output.Shape;
 
-        int numValues = shape[1]; // 84
-        int numPredictions = shape[2]; // 8400
-        int numClasses = numValues - Constants.YoloOutput.BoundingBoxDimensions; // 80 classes
+        int numValues = shape[1];
+        int numPredictions = shape[2];
+        int numClasses = numValues - Constants.YoloOutput.BoundingBoxDimensions;
 
         var imageWidth = result.ImageSize.Width;
         var imageHeight = result.ImageSize.Height;
@@ -47,7 +46,6 @@ public sealed class YoloDetector(
         var modelWidth = (float)Constants.ImageProcessing.YoloInputWidth;
         var modelHeight = (float)Constants.ImageProcessing.YoloInputHeight;
 
-        // スケーリング係数
         var scaleX = imageWidth / modelWidth;
         var scaleY = imageHeight / modelHeight;
 
@@ -68,7 +66,6 @@ public sealed class YoloDetector(
             });
         }
 
-        // 重複する検出結果を除去
         return OnnxHelper.ApplyNMS(detections, _nmsThreshold);
     }
 
@@ -92,13 +89,11 @@ public sealed class YoloDetector(
 
     private static RectangleF CalculateBoundingBox(float[] predictions, int numPredictions, int index, float scaleX, float scaleY, int imageWidth, int imageHeight)
     {
-        // バウンディングボックスの座標を取得（モデル座標系）
         var cx = predictions[0 * numPredictions + index] * scaleX;
         var cy = predictions[1 * numPredictions + index] * scaleY;
         var w = predictions[2 * numPredictions + index] * scaleX;
         var h = predictions[3 * numPredictions + index] * scaleY;
 
-        // バウンディングボックスの座標を計算
         var x1 = Math.Max(0, cx - w / 2);
         var y1 = Math.Max(0, cy - h / 2);
         var x2 = Math.Min(imageWidth, cx + w / 2);

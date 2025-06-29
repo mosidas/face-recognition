@@ -4,15 +4,13 @@ using Recognizer;
 namespace RealTimeDetector;
 
 /// <summary>
-/// 物体検出結果の描画を担当するクラス
+/// 物体検出結果の描画
 /// </summary>
 public static class ObjectDetectionRenderer
 {
     /// <summary>
-    /// フレームに検出結果を描画
+    /// 検出結果を描画
     /// </summary>
-    /// <param name="frame">描画対象のフレーム</param>
-    /// <param name="detections">検出結果のリスト</param>
     public static void DrawDetections(Mat frame, List<Detection> detections)
     {
         foreach (var detection in detections)
@@ -20,15 +18,12 @@ public static class ObjectDetectionRenderer
             DrawSingleDetection(frame, detection);
         }
 
-        // 検出数の表示
         DrawDetectionCount(frame, detections.Count);
     }
 
     /// <summary>
-    /// 単一の検出結果を描画
+    /// 単一検出結果の描画
     /// </summary>
-    /// <param name="frame">描画対象のフレーム</param>
-    /// <param name="detection">検出結果</param>
     private static void DrawSingleDetection(Mat frame, Detection detection)
     {
         var rect = new Rect(
@@ -38,23 +33,16 @@ public static class ObjectDetectionRenderer
             (int)detection.BBox.Height
         );
 
-        // バウンディングボックスの色を信頼度に基づいて決定
+        // 視認性向上のため信頼度による色分け
         var color = GetConfidenceColor(detection.Confidence);
 
-        // バウンディングボックスを描画
         Cv2.Rectangle(frame, rect, color, 2);
-
-        // ラベルと信頼度を描画
         DrawLabel(frame, detection, rect, color);
     }
 
     /// <summary>
-    /// ラベルと信頼度を描画
+    /// ラベルの描画
     /// </summary>
-    /// <param name="frame">描画対象のフレーム</param>
-    /// <param name="detection">検出結果</param>
-    /// <param name="rect">バウンディングボックス</param>
-    /// <param name="color">描画色</param>
     private static void DrawLabel(Mat frame, Detection detection, Rect rect, Scalar color)
     {
         var label = $"{detection.ClassName}: {detection.Confidence:F2}";
@@ -62,10 +50,8 @@ public static class ObjectDetectionRenderer
         var fontScale = 0.6;
         var thickness = 1;
 
-        // テキストサイズを取得
         var textSize = Cv2.GetTextSize(label, font, fontScale, thickness, out int baseline);
 
-        // テキスト背景の矩形を計算
         var textRect = new Rect(
             rect.X,
             rect.Y - textSize.Height - baseline - 5,
@@ -73,26 +59,23 @@ public static class ObjectDetectionRenderer
             textSize.Height + baseline + 5
         );
 
-        // テキスト背景を描画
+        // 可読性向上のため背景付きテキスト
         Cv2.Rectangle(frame, textRect, color, -1);
 
-        // テキストを描画（黒色）
         Cv2.PutText(
             frame,
             label,
             new Point(rect.X + 5, rect.Y - 5),
             font,
             fontScale,
-            new Scalar(0, 0, 0), // 黒色
+            new Scalar(0, 0, 0),
             thickness
         );
     }
 
     /// <summary>
-    /// 検出数をフレームに描画
+    /// 検出数の表示
     /// </summary>
-    /// <param name="frame">描画対象のフレーム</param>
-    /// <param name="detectionCount">検出数</param>
     private static void DrawDetectionCount(Mat frame, int detectionCount)
     {
         var infoText = $"Detections: {detectionCount}";
@@ -100,18 +83,15 @@ public static class ObjectDetectionRenderer
         var fontScale = 0.8;
         var thickness = 2;
 
-        // 背景色（半透明の黒）
         var bgColor = new Scalar(0, 0, 0, 128);
-        var textColor = new Scalar(255, 255, 255); // 白色
+        var textColor = new Scalar(255, 255, 255);
 
-        // テキストサイズを取得
         var textSize = Cv2.GetTextSize(infoText, font, fontScale, thickness, out int baseline);
 
-        // 背景矩形を描画
+        // 情報の視認性確保のため背景付き表示
         var bgRect = new Rect(10, 10, textSize.Width + 20, textSize.Height + baseline + 10);
-        Cv2.Rectangle(frame, bgRect, new Scalar(0, 0, 0), -1); // 不透明な黒背景
+        Cv2.Rectangle(frame, bgRect, new Scalar(0, 0, 0), -1);
 
-        // テキストを描画
         Cv2.PutText(
             frame,
             infoText,
@@ -124,27 +104,22 @@ public static class ObjectDetectionRenderer
     }
 
     /// <summary>
-    /// 信頼度に基づいて色を決定
+    /// 信頼度による色分け
     /// </summary>
-    /// <param name="confidence">信頼度</param>
-    /// <returns>描画色</returns>
     private static Scalar GetConfidenceColor(float confidence)
     {
-        // 信頼度に基づいて色を変更
-        // 高い信頼度: 緑色
-        // 中程度の信頼度: 黄色
-        // 低い信頼度: 赤色
+        // 直感的な信頼度表示のため色分け（緑=高、黄=中、赤=低）
         if (confidence >= 0.8f)
         {
-            return new Scalar(0, 255, 0); // 緑色
+            return new Scalar(0, 255, 0);
         }
         else if (confidence >= 0.6f)
         {
-            return new Scalar(0, 255, 255); // 黄色
+            return new Scalar(0, 255, 255);
         }
         else
         {
-            return new Scalar(0, 0, 255); // 赤色
+            return new Scalar(0, 0, 255);
         }
     }
 }
