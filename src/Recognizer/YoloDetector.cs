@@ -3,43 +3,39 @@ using System.Drawing;
 
 namespace Recognizer;
 
-/// <summary>
-/// YOLO物体検出器
-/// </summary>
 public class YoloDetector : IDisposable
 {
-private readonly InferenceSession _session;
-private readonly string[] _classNames;
-private readonly float _confidenceThreshold;
-private readonly float _nmsThreshold;
+    private readonly InferenceSession _session;
+    private readonly string[] _classNames;
+    private readonly float _confidenceThreshold;
+    private readonly float _nmsThreshold;
 
-public YoloDetector(string modelPath, string[] classNames, float confidenceThreshold = Constants.Thresholds.DefaultObjectDetectionThreshold, float nmsThreshold = Constants.Thresholds.DefaultNmsThreshold)
-{
-  _session = OnnxHelper.LoadModel(modelPath);
-  _classNames = classNames;
-  _confidenceThreshold = confidenceThreshold;
-  _nmsThreshold = nmsThreshold;
-}
+    public YoloDetector(string modelPath, string[] classNames, float confidenceThreshold = Constants.Thresholds.DefaultObjectDetectionThreshold, float nmsThreshold = Constants.Thresholds.DefaultNmsThreshold)
+    {
+        _session = OnnxHelper.LoadModel(modelPath);
+        _classNames = classNames;
+        _confidenceThreshold = confidenceThreshold;
+        _nmsThreshold = nmsThreshold;
+    }
 
-/// <summary>
-/// 物体検出を実行
-/// </summary>
-public async Task<List<Detection>> DetectAsync(string imagePath)
-{
-  var result = await OnnxHelper.Run(_session, imagePath);
-  return ParseYoloOutput(result);
-}
+    public async Task<List<Detection>> DetectAsync(OpenCvSharp.Mat inputImage)
+    {
+        var result = await OnnxHelper.Run(_session, inputImage);
+        return ParseYoloOutput(result);
+    }
 
-    /// <summary>
-    /// YOLOの出力を解析
-    /// </summary>
+    public async Task<List<Detection>> DetectAsync(string imagePath)
+    {
+        var result = await OnnxHelper.Run(_session, imagePath);
+        return ParseYoloOutput(result);
+    }
+
     private List<Detection> ParseYoloOutput(InferenceResult result)
     {
         var detections = new List<Detection>();
 
-        // YOLOv8/v11の出力形式: [1, 84, 8400]
-        // 84 = 4 (x,y,w,h) + 80 classes
-        // 8400 = 検出候補の数
+        // YOLOv8/v11の特殊な出力形式に対応
+        // 84 = 4 (x,y,w,h) + 80 classes, 8400 = 検出候補数
         var output = result.Outputs.First().Value;
         var predictions = output.Data;
         var shape = output.Shape;
@@ -51,7 +47,7 @@ public async Task<List<Detection>> DetectAsync(string imagePath)
         var imageWidth = result.ImageSize.Width;
         var imageHeight = result.ImageSize.Height;
 
-        // モデルの入力サイズ（YOLOv11は通常640x640）
+        // YOLOモデルの標準入力サイズに正規化が必要
         var modelWidth = (float)Constants.ImageProcessing.YoloInputWidth;
         var modelHeight = (float)Constants.ImageProcessing.YoloInputHeight;
 
@@ -104,13 +100,10 @@ public async Task<List<Detection>> DetectAsync(string imagePath)
             });
         }
 
-        // NMS適用
+        // 重複する検出結果を除去
         return OnnxHelper.ApplyNMS(detections, _nmsThreshold);
     }
 
-        /// <summary>
-    /// リソースの解放
-    /// </summary>
     public void Dispose()
     {
         _session?.Dispose();
@@ -118,9 +111,6 @@ public async Task<List<Detection>> DetectAsync(string imagePath)
     }
 }
 
-/// <summary>
-/// COCO データセットのクラス名
-/// </summary>
 public static class CocoClassNames
 {
 public static readonly string[] Names =

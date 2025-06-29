@@ -20,12 +20,12 @@ public sealed class TempImageFile : IDisposable
     {
         // セキュアな一時ディレクトリを取得
         var tempDir = System.IO.Path.GetTempPath();
-        
+
         // ユニークなファイル名を生成
         var fileName = $"face_temp_{Guid.NewGuid():N}{Constants.Files.TempImageExtension}";
-        
+
         _tempPath = System.IO.Path.Combine(tempDir, fileName);
-        
+
         // ファイルが既に存在する場合の安全チェック
         if (File.Exists(_tempPath))
         {
@@ -52,10 +52,10 @@ public sealed class TempImageFile : IDisposable
                 // 一時ファイルの削除に失敗してもアプリケーションを停止させない
                 Console.WriteLine($"Warning: Failed to delete temporary file {_tempPath}: {ex.Message}");
             }
-            
+
             _disposed = true;
         }
-        
+
         GC.SuppressFinalize(this);
     }
 
