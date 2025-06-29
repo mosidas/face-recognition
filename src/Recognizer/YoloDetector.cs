@@ -3,30 +3,26 @@ using System.Drawing;
 
 namespace Recognizer;
 
-public class YoloDetector : IDisposable
+public sealed class YoloDetector(
+    string modelPath,
+    string[] classNames,
+    float confidenceThreshold = Constants.Thresholds.DefaultObjectDetectionThreshold,
+    float nmsThreshold = Constants.Thresholds.DefaultNmsThreshold) : IDisposable
 {
-    private readonly InferenceSession _session;
-    private readonly string[] _classNames;
-    private readonly float _confidenceThreshold;
-    private readonly float _nmsThreshold;
+    private readonly InferenceSession _session = OnnxHelper.LoadModel(modelPath);
+    private readonly string[] _classNames = classNames;
+    private readonly float _confidenceThreshold = confidenceThreshold;
+    private readonly float _nmsThreshold = nmsThreshold;
 
-    public YoloDetector(string modelPath, string[] classNames, float confidenceThreshold = Constants.Thresholds.DefaultObjectDetectionThreshold, float nmsThreshold = Constants.Thresholds.DefaultNmsThreshold)
+    public async Task<List<Detection>> DetectAsync(OpenCvSharp.Mat inputImage, CancellationToken cancellationToken = default)
     {
-        _session = OnnxHelper.LoadModel(modelPath);
-        _classNames = classNames;
-        _confidenceThreshold = confidenceThreshold;
-        _nmsThreshold = nmsThreshold;
-    }
-
-    public async Task<List<Detection>> DetectAsync(OpenCvSharp.Mat inputImage)
-    {
-        var result = await OnnxHelper.Run(_session, inputImage);
+        var result = await OnnxHelper.Run(_session, inputImage, cancellationToken).ConfigureAwait(false);
         return ParseYoloOutput(result);
     }
 
-    public async Task<List<Detection>> DetectAsync(string imagePath)
+    public async Task<List<Detection>> DetectAsync(string imagePath, CancellationToken cancellationToken = default)
     {
-        var result = await OnnxHelper.Run(_session, imagePath);
+        var result = await OnnxHelper.Run(_session, imagePath, cancellationToken).ConfigureAwait(false);
         return ParseYoloOutput(result);
     }
 
@@ -57,52 +53,62 @@ public class YoloDetector : IDisposable
 
         for (int i = 0; i < numPredictions; i++)
         {
-            // クラスの確率を取得（最大値を見つける）
-            var maxClassScore = 0.0f;
-            var maxClassId = 0;
-
-            for (int j = 0; j < numClasses; j++)
-            {
-                var classScore = predictions[(j + 4) * numPredictions + i]; // クラススコアは4番目以降
-                if (classScore > maxClassScore)
-                {
-                    maxClassScore = classScore;
-                    maxClassId = j;
-                }
-            }
+            var (maxClassScore, maxClassId) = GetMaxClassScore(predictions, numPredictions, numClasses, i);
 
             if (maxClassScore < _confidenceThreshold) continue;
 
-            // バウンディングボックスの座標を取得（モデル座標系）
-            var cx = predictions[0 * numPredictions + i];  // center x
-            var cy = predictions[1 * numPredictions + i];  // center y
-            var w = predictions[2 * numPredictions + i];   // width
-            var h = predictions[3 * numPredictions + i];   // height
-
-            // 座標を元画像のサイズにスケーリング
-            cx *= scaleX;
-            cy *= scaleY;
-            w *= scaleX;
-            h *= scaleY;
-
-            // バウンディングボックスの座標を計算
-            var x1 = Math.Max(0, cx - w / 2);
-            var y1 = Math.Max(0, cy - h / 2);
-            var x2 = Math.Min(imageWidth, cx + w / 2);
-            var y2 = Math.Min(imageHeight, cy + h / 2);
+            var boundingBox = CalculateBoundingBox(predictions, numPredictions, i, scaleX, scaleY, imageWidth, imageHeight);
 
             detections.Add(new Detection
             {
                 ClassId = maxClassId,
-                ClassName = maxClassId < _classNames.Length ? _classNames[maxClassId] : $"Class_{maxClassId}",
+                ClassName = GetClassName(maxClassId),
                 Confidence = maxClassScore,
-                BBox = new RectangleF(x1, y1, x2 - x1, y2 - y1)
+                BBox = boundingBox
             });
         }
 
         // 重複する検出結果を除去
         return OnnxHelper.ApplyNMS(detections, _nmsThreshold);
     }
+
+    private (float maxScore, int maxId) GetMaxClassScore(float[] predictions, int numPredictions, int numClasses, int predictionIndex)
+    {
+        var maxClassScore = 0.0f;
+        var maxClassId = 0;
+
+        for (int j = 0; j < numClasses; j++)
+        {
+            var classScore = predictions[(j + 4) * numPredictions + predictionIndex];
+            if (classScore > maxClassScore)
+            {
+                maxClassScore = classScore;
+                maxClassId = j;
+            }
+        }
+
+        return (maxClassScore, maxClassId);
+    }
+
+    private static RectangleF CalculateBoundingBox(float[] predictions, int numPredictions, int index, float scaleX, float scaleY, int imageWidth, int imageHeight)
+    {
+        // バウンディングボックスの座標を取得（モデル座標系）
+        var cx = predictions[0 * numPredictions + index] * scaleX;
+        var cy = predictions[1 * numPredictions + index] * scaleY;
+        var w = predictions[2 * numPredictions + index] * scaleX;
+        var h = predictions[3 * numPredictions + index] * scaleY;
+
+        // バウンディングボックスの座標を計算
+        var x1 = Math.Max(0, cx - w / 2);
+        var y1 = Math.Max(0, cy - h / 2);
+        var x2 = Math.Min(imageWidth, cx + w / 2);
+        var y2 = Math.Min(imageHeight, cy + h / 2);
+
+        return new RectangleF(x1, y1, x2 - x1, y2 - y1);
+    }
+
+    private string GetClassName(int classId) =>
+        classId < _classNames.Length ? _classNames[classId] : $"Class_{classId}";
 
     public void Dispose()
     {
@@ -113,8 +119,8 @@ public class YoloDetector : IDisposable
 
 public static class CocoClassNames
 {
-public static readonly string[] Names =
-[
+    public static readonly string[] Names =
+    [
         "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light",
         "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow",
         "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",

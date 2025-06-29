@@ -3,34 +3,21 @@ using Recognizer;
 
 namespace RealTimeDetector;
 
-public class RealTimeObjectDetector : IDisposable
+public sealed class RealTimeObjectDetector(YoloDetector detector, VideoCapture capture, string windowName = "Real-time Object Detection") : IDisposable
 {
-    private readonly YoloDetector _detector;
-    private readonly VideoCapture _capture;
-    private readonly string _windowName;
+    private readonly YoloDetector _detector = detector ?? throw new ArgumentNullException(nameof(detector));
+    private readonly VideoCapture _capture = capture ?? throw new ArgumentNullException(nameof(capture));
+    private readonly string _windowName = windowName;
     private bool _disposed = false;
-
-    public RealTimeObjectDetector(YoloDetector detector, VideoCapture capture, string windowName = "Real-time Object Detection")
-    {
-        _detector = detector ?? throw new ArgumentNullException(nameof(detector));
-        _capture = capture ?? throw new ArgumentNullException(nameof(capture));
-        _windowName = windowName;
-    }
 
     public void Start()
     {
-        Console.WriteLine("Starting real-time object detection...");
-        Console.WriteLine("Press 'q' or ESC to quit");
-
+        using var frame = new Mat();
         var frameCount = 0;
         var startTime = DateTime.Now;
 
         while (true)
         {
-            using var frame = new Mat();
-            using var displayFrame = new Mat();
-
-            // フレームを読み取り
             if (!_capture.Read(frame) || frame.Empty())
             {
                 Console.WriteLine("Failed to read frame from camera");
@@ -39,35 +26,22 @@ public class RealTimeObjectDetector : IDisposable
 
             frameCount++;
 
-            try
-            {
-                // フレームをコピーして表示用を準備
-                frame.CopyTo(displayFrame);
+            // 物体検出の実行
+            var detections = DetectObjects(frame);
 
-                // 物体検出を実行（同期処理、一時ファイル不要）
-                var detections = DetectObjects(frame);
-
-                // 検出結果を描画
-                if (detections.Count > 0)
-                {
-                    ObjectDetectionRenderer.DrawDetections(displayFrame, detections);
-                }
-
-                // FPS計算と表示（30フレームごと）
-                if (frameCount % 30 == 0)
-                {
-                    var elapsed = DateTime.Now - startTime;
-                    var currentFps = frameCount / elapsed.TotalSeconds;
-                    Console.WriteLine($"Processing FPS: {currentFps:F1}, Detections: {detections.Count}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error processing frame {frameCount}: {ex.Message}");
-            }
+            // 結果を描画
+            DrawDetections(frame, detections);
 
             // フレームを表示
-            Cv2.ImShow(_windowName, displayFrame);
+            Cv2.ImShow(_windowName, frame);
+
+            // FPS計算と表示（30フレームごと）
+            if (frameCount % 30 == 0)
+            {
+                var elapsed = DateTime.Now - startTime;
+                var currentFps = frameCount / elapsed.TotalSeconds;
+                Console.WriteLine($"Detection FPS: {currentFps:F1}");
+            }
 
             // キー入力チェック
             var key = Cv2.WaitKey(1);
@@ -79,12 +53,11 @@ public class RealTimeObjectDetector : IDisposable
         }
     }
 
-    /// <summary>
     private List<Detection> DetectObjects(Mat frame)
     {
         if (frame.Empty() || frame.IsDisposed)
         {
-            return new List<Detection>();
+            return [];
         }
 
         try
@@ -93,16 +66,42 @@ public class RealTimeObjectDetector : IDisposable
             var detectionTask = _detector.DetectAsync(frame);
             var result = detectionTask.GetAwaiter().GetResult();
 
-            return result ?? new List<Detection>();
+            return result ?? [];
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Detection error: {ex.Message}");
-            return new List<Detection>();
+            return [];
         }
     }
 
+    private static void DrawDetections(Mat frame, List<Detection> detections)
+    {
+        foreach (var detection in detections)
+        {
+            var rect = new Rect(
+                (int)detection.BBox.X,
+                (int)detection.BBox.Y,
+                (int)detection.BBox.Width,
+                (int)detection.BBox.Height
+            );
 
+            // バウンディングボックスを描画
+            Cv2.Rectangle(frame, rect, new Scalar(0, 255, 0), 2);
+
+            // ラベルを描画
+            var label = $"{detection.ClassName}: {detection.Confidence:F2}";
+            Cv2.PutText(
+                frame,
+                label,
+                new Point(rect.X, rect.Y - 5),
+                HersheyFonts.HersheySimplex,
+                0.5,
+                new Scalar(0, 255, 0),
+                1
+            );
+        }
+    }
 
     public void Dispose()
     {

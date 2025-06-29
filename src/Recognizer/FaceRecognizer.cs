@@ -5,32 +5,24 @@ using System.Numerics;
 
 namespace Recognizer;
 
-public class FaceRecognizer : IDisposable
+public sealed class FaceRecognizer(
+    string detectorModelPath,
+    string recognizerModelPath,
+    float detectionThreshold = Constants.Thresholds.DefaultFaceDetectionThreshold,
+    float recognitionThreshold = Constants.Thresholds.DefaultFaceRecognitionThreshold) : IDisposable
 {
-    private readonly InferenceSession _detectorSession;
-    private readonly InferenceSession _recognizerSession;
-    private readonly float _detectionThreshold;
-    private readonly float _recognitionThreshold;
+    private readonly InferenceSession _detectorSession = OnnxHelper.LoadModel(detectorModelPath);
+    private readonly InferenceSession _recognizerSession = OnnxHelper.LoadModel(recognizerModelPath);
+    private readonly float _detectionThreshold = detectionThreshold;
+    private readonly float _recognitionThreshold = recognitionThreshold;
 
-    public FaceRecognizer(
-        string detectorModelPath,
-        string recognizerModelPath,
-        float detectionThreshold = Constants.Thresholds.DefaultFaceDetectionThreshold,
-        float recognitionThreshold = Constants.Thresholds.DefaultFaceRecognitionThreshold)
+    public async Task<List<FaceDetection>> DetectFacesAsync(string imagePath, CancellationToken cancellationToken = default)
     {
-        _detectorSession = OnnxHelper.LoadModel(detectorModelPath);
-        _recognizerSession = OnnxHelper.LoadModel(recognizerModelPath);
-        _detectionThreshold = detectionThreshold;
-        _recognitionThreshold = recognitionThreshold;
-    }
-
-    public async Task<List<FaceDetection>> DetectFacesAsync(string imagePath)
-    {
-        var result = await OnnxHelper.Run(_detectorSession, imagePath);
+        var result = await OnnxHelper.Run(_detectorSession, imagePath, cancellationToken).ConfigureAwait(false);
         return ParseFaceDetectorOutput(result);
     }
 
-    public async Task<float[]> ExtractFaceEmbeddingAsync(string imagePath, Rectangle faceRegion)
+    public async Task<float[]> ExtractFaceEmbeddingAsync(string imagePath, Rectangle faceRegion, CancellationToken cancellationToken = default)
     {
         // セキュリティ上の理由で一時ファイル経由で処理
         using var image = Cv2.ImRead(imagePath);
@@ -38,7 +30,7 @@ public class FaceRecognizer : IDisposable
         using var tempFile = new TempImageFile();
         Cv2.ImWrite(tempFile.Path, face);
 
-        var result = await OnnxHelper.Run(_recognizerSession, tempFile.Path);
+        var result = await OnnxHelper.Run(_recognizerSession, tempFile.Path, cancellationToken).ConfigureAwait(false);
         return ExtractEmbedding(result);
     }
 
@@ -62,39 +54,33 @@ public class FaceRecognizer : IDisposable
         norm1 = MathF.Sqrt(norm1);
         norm2 = MathF.Sqrt(norm2);
 
-        if (norm1 == 0 || norm2 == 0)
-            return 0;
-
-        return dotProduct / (norm1 * norm2);
+        return norm1 == 0 || norm2 == 0 ? 0 : dotProduct / (norm1 * norm2);
     }
 
     public async Task<FaceVerificationResult> VerifyFaceAsync(
         string imagePath1,
-        string imagePath2)
+        string imagePath2,
+        CancellationToken cancellationToken = default)
     {
         // 両方の画像から顔を検出
-        var faces1 = await DetectFacesAsync(imagePath1);
-        var faces2 = await DetectFacesAsync(imagePath2);
+        var faces1 = await DetectFacesAsync(imagePath1, cancellationToken).ConfigureAwait(false);
+        var faces2 = await DetectFacesAsync(imagePath2, cancellationToken).ConfigureAwait(false);
 
+        // ガード句で早期リターン
         if (faces1.Count == 0 || faces2.Count == 0)
         {
-            return new FaceVerificationResult
-            {
-                IsMatch = false,
-                Confidence = 0,
-                Message = "顔が検出されませんでした"
-            };
+            return new FaceVerificationResult(false, 0, "顔が検出されませんでした");
         }
 
         // 複数顔がある場合は最も確実な顔で比較
-        var face1 = faces1.OrderByDescending(f => f.Confidence).First();
-        var face2 = faces2.OrderByDescending(f => f.Confidence).First();
+        var face1 = faces1.MaxBy(f => f.Confidence)!;
+        var face2 = faces2.MaxBy(f => f.Confidence)!;
 
         // TODO: ログレベルに応じた出力制御が必要
 
         // 特徴ベクトルの抽出
-        var embedding1 = await ExtractFaceEmbeddingAsync(imagePath1, face1.BBox);
-        var embedding2 = await ExtractFaceEmbeddingAsync(imagePath2, face2.BBox);
+        var embedding1 = await ExtractFaceEmbeddingAsync(imagePath1, face1.BBox, cancellationToken).ConfigureAwait(false);
+        var embedding2 = await ExtractFaceEmbeddingAsync(imagePath2, face2.BBox, cancellationToken).ConfigureAwait(false);
 
         // 類似度の計算
         var similarity = CompareFaces(embedding1, embedding2);
@@ -102,12 +88,10 @@ public class FaceRecognizer : IDisposable
         // 顔認証の閾値判定
         var isMatch = similarity >= _recognitionThreshold;
 
-        return new FaceVerificationResult
-        {
-            IsMatch = isMatch,
-            Confidence = similarity,
-            Message = isMatch ? "同一人物です" : "別人です"
-        };
+        return new FaceVerificationResult(
+            isMatch,
+            similarity,
+            isMatch ? "同一人物です" : "別人です");
     }
 
     private List<FaceDetection> ParseFaceDetectorOutput(InferenceResult result)
@@ -138,67 +122,62 @@ public class FaceRecognizer : IDisposable
             var confidence = predictions[4 * numPredictions + i]; // 5番目の要素
             if (confidence < _detectionThreshold) continue;
 
-            // バウンディングボックスの座標を取得（モデル座標系）
-            var cx = predictions[0 * numPredictions + i];  // center x
-            var cy = predictions[1 * numPredictions + i];  // center y
-            var w = predictions[2 * numPredictions + i];   // width
-            var h = predictions[3 * numPredictions + i];   // height
-
-            // 座標を元画像のサイズにスケーリング
-            cx *= scaleX;
-            cy *= scaleY;
-            w *= scaleX;
-            h *= scaleY;
-
-            // バウンディングボックスの座標を計算
-            var x1 = Math.Max(0, cx - w / 2);
-            var y1 = Math.Max(0, cy - h / 2);
-            var x2 = Math.Min(imageWidth, cx + w / 2);
-            var y2 = Math.Min(imageHeight, cy + h / 2);
+            var boundingBox = CalculateFaceBoundingBox(predictions, numPredictions, i, scaleX, scaleY, imageWidth, imageHeight);
 
             // 有効な領域かチェック
-            if (x2 <= x1 || y2 <= y1) continue;
+            if (boundingBox.Width <= 0 || boundingBox.Height <= 0) continue;
 
-            var bbox = Rectangle.FromLTRB((int)x1, (int)y1, (int)x2, (int)y2);
-
-            detections.Add(new FaceDetection
-            {
-                BBox = bbox,
-                Confidence = confidence,
-                Landmarks = [] // ランドマークは使用しない
-            });
+            detections.Add(new FaceDetection(boundingBox, confidence));
         }
 
+        return ApplyNMSToFaces(detections);
+    }
+
+    private static Rectangle CalculateFaceBoundingBox(float[] predictions, int numPredictions, int index, float scaleX, float scaleY, int imageWidth, int imageHeight)
+    {
+        // バウンディングボックスの座標を取得（モデル座標系）
+        var cx = predictions[0 * numPredictions + index] * scaleX;
+        var cy = predictions[1 * numPredictions + index] * scaleY;
+        var w = predictions[2 * numPredictions + index] * scaleX;
+        var h = predictions[3 * numPredictions + index] * scaleY;
+
+        // バウンディングボックスの座標を計算
+        var x1 = (int)Math.Max(0, cx - w / 2);
+        var y1 = (int)Math.Max(0, cy - h / 2);
+        var x2 = (int)Math.Min(imageWidth, cx + w / 2);
+        var y2 = (int)Math.Min(imageHeight, cy + h / 2);
+
+        return Rectangle.FromLTRB(x1, y1, x2, y2);
+    }
+
+    private static List<FaceDetection> ApplyNMSToFaces(List<FaceDetection> detections)
+    {
         // NMSを適用して重複する顔検出を除去
-        var filteredDetections = new List<Detection>();
-        foreach (var face in detections)
-        {
-            filteredDetections.Add(new Detection
+        var filteredDetections = detections
+            .Select(face => new Detection
             {
                 ClassId = 0, // 顔クラス
                 ClassName = "face",
                 Confidence = face.Confidence,
                 BBox = new RectangleF(face.BBox.X, face.BBox.Y, face.BBox.Width, face.BBox.Height)
-            });
-        }
+            })
+            .ToList();
 
         var nmsResults = OnnxHelper.ApplyNMS(filteredDetections, Constants.Thresholds.DefaultNmsThreshold);
 
-        var finalDetections = new List<FaceDetection>();
-        foreach (var nmsResult in nmsResults)
-        {
-            var bbox = Rectangle.FromLTRB((int)nmsResult.BBox.Left, (int)nmsResult.BBox.Top, (int)nmsResult.BBox.Right, (int)nmsResult.BBox.Bottom);
-            // NOTE: 本来はログシステムで出力制御すべき
-
-            finalDetections.Add(new FaceDetection
+        return nmsResults
+            .Select(nmsResult =>
             {
-                BBox = bbox,
-                Confidence = nmsResult.Confidence,
-                Landmarks = []
-            });
-        }
+                var bbox = Rectangle.FromLTRB(
+                    (int)nmsResult.BBox.Left,
+                    (int)nmsResult.BBox.Top,
+                    (int)nmsResult.BBox.Right,
+                    (int)nmsResult.BBox.Bottom);
+                // NOTE: 本来はログシステムで出力制御すべき
 
-        return finalDetections;
+                return new FaceDetection(bbox, nmsResult.Confidence);
+            })
+            .ToList();
     }
 
     private static Mat ExtractFaceRegion(Mat image, Rectangle faceRegion)
@@ -254,72 +233,40 @@ public class FaceRecognizer : IDisposable
     }
 }
 
-public class FaceDetection
+public record FaceDetection(Rectangle BBox, float Confidence)
 {
-    public Rectangle BBox { get; set; }
-    public float Confidence { get; set; }
-    public PointF[] Landmarks { get; set; } = [];
+    public PointF[] Landmarks { get; init; } = [];
 }
 
-public class FaceVerificationResult
-{
-    public bool IsMatch { get; set; }
-    public float Confidence { get; set; }
-    public string Message { get; set; } = string.Empty;
-}
+public record FaceVerificationResult(bool IsMatch, float Confidence, string Message);
 
-public class FaceDatabase
+public sealed class FaceDatabase
 {
     private readonly Dictionary<string, FaceEntry> _database = [];
 
     public void RegisterFace(string personId, string name, float[] embedding)
     {
-        _database[personId] = new FaceEntry
-        {
-            PersonId = personId,
-            Name = name,
-            Embedding = embedding,
-            RegisteredAt = DateTime.Now
-        };
+        _database[personId] = new FaceEntry(personId, name, embedding, DateTime.Now);
     }
 
     public FaceIdentificationResult IdentifyFace(float[] queryEmbedding, float threshold = 0.6f)
     {
-        var bestMatch = new FaceIdentificationResult
-        {
-            PersonId = null,
-            Name = "Unknown",
-            Confidence = 0
-        };
+        var bestMatch = new FaceIdentificationResult(null, "Unknown", 0);
 
         foreach (var entry in _database.Values)
         {
             var similarity = FaceRecognizer.CompareFaces(queryEmbedding, entry.Embedding);
             if (similarity > bestMatch.Confidence && similarity >= threshold)
             {
-                bestMatch.PersonId = entry.PersonId;
-                bestMatch.Name = entry.Name;
-                bestMatch.Confidence = similarity;
+                bestMatch = bestMatch with { PersonId = entry.PersonId, Name = entry.Name, Confidence = similarity };
             }
         }
 
         return bestMatch;
     }
-
 }
 
-public class FaceEntry
-{
-    public string PersonId { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-    public float[] Embedding { get; set; } = [];
-    public DateTime RegisteredAt { get; set; }
-}
+public record FaceEntry(string PersonId, string Name, float[] Embedding, DateTime RegisteredAt);
 
-public class FaceIdentificationResult
-{
-    public string? PersonId { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public float Confidence { get; set; }
-}
+public record FaceIdentificationResult(string? PersonId, string Name, float Confidence);
 

@@ -5,7 +5,7 @@ using System.Drawing;
 
 namespace Recognizer;
 
-public class OnnxHelper
+public static class OnnxHelper
 {
     public static InferenceSession LoadModel(string modelPath)
     {
@@ -33,7 +33,7 @@ public class OnnxHelper
         return session;
     }
 
-    public static async Task<InferenceResult> Run(InferenceSession session, Mat inputImage)
+    public static async Task<InferenceResult> Run(InferenceSession session, Mat inputImage, CancellationToken cancellationToken = default)
     {
         return await Task.Run(() =>
         {
@@ -55,12 +55,12 @@ public class OnnxHelper
 
             // 結果の処理
             return ProcessResults(results, inputImage.Size());
-        });
+        }, cancellationToken).ConfigureAwait(false);
     }
 
-    public static async Task<InferenceResult> Run(InferenceSession session, string inputPath)
+    public static async Task<InferenceResult> Run(InferenceSession session, string inputPath, CancellationToken cancellationToken = default)
     {
-        return await Task.Run(() =>
+        return await Task.Run(async () =>
         {
             using var image = Cv2.ImRead(inputPath);
             if (image.Empty())
@@ -68,8 +68,8 @@ public class OnnxHelper
                 throw new ArgumentException($"Failed to load image: {inputPath}");
             }
 
-            return Run(session, image);
-        });
+            return await Run(session, image, cancellationToken).ConfigureAwait(false);
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     private static DenseTensor<float> PreprocessImage(Mat image, int[] inputShape)
@@ -98,8 +98,6 @@ public class OnnxHelper
             }
         }
 
-
-
         return tensor;
     }
 
@@ -123,24 +121,15 @@ public class OnnxHelper
 
     private static InferenceResult ProcessResults(IDisposableReadOnlyCollection<DisposableNamedOnnxValue> results, OpenCvSharp.Size imageSize)
     {
-        var inferenceResult = new InferenceResult
-        {
-            ImageSize = imageSize
-        };
+        var inferenceResult = new InferenceResult(imageSize);
 
         foreach (var result in results)
         {
             var outputName = result.Name;
             var outputTensor = result.AsEnumerable<float>().ToArray();
-
             var tensorShape = result.AsTensor<float>().Dimensions.ToArray();
 
-            inferenceResult.Outputs.Add(outputName, new OutputData
-            {
-                Name = outputName,
-                Data = outputTensor,
-                Shape = tensorShape
-            });
+            inferenceResult.Outputs.Add(outputName, new OutputData(outputName, outputTensor, tensorShape));
         }
 
         return inferenceResult;
@@ -154,7 +143,7 @@ public class OnnxHelper
 
         var selected = new List<Detection>();
         var active = new bool[detections.Count];
-        for (int i = 0; i < active.Length; i++) active[i] = true;
+        Array.Fill(active, true);
 
         for (int i = 0; i < detections.Count; i++)
         {
@@ -164,8 +153,7 @@ public class OnnxHelper
 
             for (int j = i + 1; j < detections.Count; j++)
             {
-                if (!active[j]) continue;
-                if (detections[i].ClassId != detections[j].ClassId) continue;
+                if (!active[j] || detections[i].ClassId != detections[j].ClassId) continue;
 
                 var iou = CalculateIoU(detections[i].BBox, detections[j].BBox);
                 if (iou > nmsThreshold)
@@ -194,24 +182,18 @@ public class OnnxHelper
     }
 }
 
-public class InferenceResult
+public record InferenceResult(OpenCvSharp.Size ImageSize)
 {
-    public OpenCvSharp.Size ImageSize { get; set; }
-    public Dictionary<string, OutputData> Outputs { get; set; } = new Dictionary<string, OutputData>();
+    public Dictionary<string, OutputData> Outputs { get; init; } = new Dictionary<string, OutputData>();
 }
 
-public class OutputData
-{
-    public string Name { get; set; } = string.Empty;
-    public float[] Data { get; set; } = [];
-    public int[] Shape { get; set; } = [];
-}
+public record OutputData(string Name, float[] Data, int[] Shape);
 
-public class Detection
+public record Detection
 {
-    public int ClassId { get; set; }
-    public string ClassName { get; set; } = string.Empty;
-    public float Confidence { get; set; }
-    public RectangleF BBox { get; set; }
-    public float[]? Embedding { get; set; } // 顔認証用の特徴ベクトル
+    public required int ClassId { get; init; }
+    public required string ClassName { get; init; }
+    public required float Confidence { get; init; }
+    public required RectangleF BBox { get; init; }
+    public float[]? Embedding { get; init; } // 顔認証用の特徴ベクトル
 }
