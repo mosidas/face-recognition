@@ -23,10 +23,37 @@ public static class Constants
     public static class YoloOutput
     {
         public const int BoundingBoxDimensions = 4;
+
+        // YOLOv8n-face: [x, y, w, h, confidence]
+        public const int Yolov8FaceOutputFeatures = 5;
+
+        // YOLOv11-face: 転置出力形式
+        public const int Yolov11FaceOutputFeatures = 5;
     }
 
     public static class Files
     {
         public const string ResultImageSuffix = "_result.jpg";
     }
+}
+
+/// <summary>
+/// YOLOモデルタイプ
+/// </summary>
+public enum YoloFaceModelType
+{
+    /// <summary>
+    /// 自動判別（推奨）
+    /// </summary>
+    Auto,
+
+    /// <summary>
+    /// YOLOv8n-face形式
+    /// </summary>
+    Yolov8n,
+
+    /// <summary>
+    /// YOLOv11-face形式（転置出力）
+    /// </summary>
+    Yolov11
 }

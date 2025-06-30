@@ -4,27 +4,44 @@ using System.Drawing;
 
 namespace Recognizer;
 
+/// <summary>
+/// 顔検出結果
+/// </summary>
+public sealed record FaceDetection(
+    Rectangle BBox,
+    float Confidence,
+    FaceLandmarks? Landmarks = null);
+
+/// <summary>
+/// 顔のランドマーク座標
+/// </summary>
+public sealed record FaceLandmarks(
+    PointF LeftEye,
+    PointF RightEye,
+    PointF Nose,
+    PointF LeftMouth,
+    PointF RightMouth);
+
 public sealed class FaceRecognizer(
     string detectorModelPath,
     string recognizerModelPath,
     float detectionThreshold = Constants.Thresholds.DefaultFaceDetectionThreshold,
-    float recognitionThreshold = Constants.Thresholds.DefaultFaceRecognitionThreshold) : IDisposable
+    float recognitionThreshold = Constants.Thresholds.DefaultFaceRecognitionThreshold,
+    YoloFaceModelType modelType = YoloFaceModelType.Auto,
+    bool enableDebug = false) : IDisposable
 {
-    private readonly InferenceSession _detectorSession = OnnxHelper.LoadModel(detectorModelPath);
+    private readonly YoloFaceDetector _faceDetector = new(detectorModelPath, detectionThreshold, modelType, enableDebug);
     private readonly InferenceSession _recognizerSession = OnnxHelper.LoadModel(recognizerModelPath);
-    private readonly float _detectionThreshold = detectionThreshold;
     private readonly float _recognitionThreshold = recognitionThreshold;
 
     public async Task<List<FaceDetection>> DetectFacesAsync(string imagePath, CancellationToken cancellationToken = default)
     {
-        var result = await OnnxHelper.Run(_detectorSession, imagePath, cancellationToken).ConfigureAwait(false);
-        return ParseFaceDetectorOutput(result);
+        return await _faceDetector.DetectAsync(imagePath, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<List<FaceDetection>> DetectFacesAsync(Mat inputImage, CancellationToken cancellationToken = default)
     {
-        var result = await OnnxHelper.Run(_detectorSession, inputImage, cancellationToken).ConfigureAwait(false);
-        return ParseFaceDetectorOutput(result);
+        return await _faceDetector.DetectAsync(inputImage, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<float[]> ExtractFaceEmbeddingAsync(string imagePath, Rectangle faceRegion, CancellationToken cancellationToken = default)
@@ -90,82 +107,7 @@ public sealed class FaceRecognizer(
             isMatch ? "同一人物です" : "別人です");
     }
 
-    private List<FaceDetection> ParseFaceDetectorOutput(InferenceResult result)
-    {
-        var detections = new List<FaceDetection>();
-        var output = result.Outputs.First().Value;
-        var predictions = output.Data;
-        var shape = output.Shape;
 
-        // YOLOv11-faceは転置出力のため従来のYOLOと処理が異なる
-        _ = shape[1];
-        int numPredictions = shape[2];
-
-        var imageWidth = result.ImageSize.Width;
-        var imageHeight = result.ImageSize.Height;
-
-        var modelWidth = (float)Constants.ImageProcessing.YoloInputWidth;
-        var modelHeight = (float)Constants.ImageProcessing.YoloInputHeight;
-
-        var scaleX = imageWidth / modelWidth;
-        var scaleY = imageHeight / modelHeight;
-
-        for (int i = 0; i < numPredictions; i++)
-        {
-            var confidence = predictions[4 * numPredictions + i];
-            if (confidence < _detectionThreshold) continue;
-
-            var boundingBox = CalculateFaceBoundingBox(predictions, numPredictions, i, scaleX, scaleY, imageWidth, imageHeight);
-
-            if (boundingBox.Width <= 0 || boundingBox.Height <= 0) continue;
-
-            detections.Add(new FaceDetection(boundingBox, confidence));
-        }
-
-        return ApplyNMSToFaces(detections);
-    }
-
-    private static Rectangle CalculateFaceBoundingBox(float[] predictions, int numPredictions, int index, float scaleX, float scaleY, int imageWidth, int imageHeight)
-    {
-        var cx = predictions[0 * numPredictions + index] * scaleX;
-        var cy = predictions[1 * numPredictions + index] * scaleY;
-        var w = predictions[2 * numPredictions + index] * scaleX;
-        var h = predictions[3 * numPredictions + index] * scaleY;
-
-        var x1 = (int)Math.Max(0, cx - w / 2);
-        var y1 = (int)Math.Max(0, cy - h / 2);
-        var x2 = (int)Math.Min(imageWidth, cx + w / 2);
-        var y2 = (int)Math.Min(imageHeight, cy + h / 2);
-
-        return Rectangle.FromLTRB(x1, y1, x2, y2);
-    }
-
-    private static List<FaceDetection> ApplyNMSToFaces(List<FaceDetection> detections)
-    {
-        var filteredDetections = detections
-            .Select(face => new Detection
-            {
-                ClassId = 0,
-                ClassName = "face",
-                Confidence = face.Confidence,
-                BBox = new RectangleF(face.BBox.X, face.BBox.Y, face.BBox.Width, face.BBox.Height)
-            })
-            .ToList();
-
-        var nmsResults = OnnxHelper.ApplyNMS(filteredDetections, Constants.Thresholds.DefaultNmsThreshold);
-
-        return [.. nmsResults
-            .Select(nmsResult =>
-            {
-                var bbox = Rectangle.FromLTRB(
-                    (int)nmsResult.BBox.Left,
-                    (int)nmsResult.BBox.Top,
-                    (int)nmsResult.BBox.Right,
-                    (int)nmsResult.BBox.Bottom);
-
-                return new FaceDetection(bbox, nmsResult.Confidence);
-            })];
-    }
 
     private static Mat ExtractFaceRegion(Mat image, Rectangle faceRegion)
     {
@@ -199,15 +141,10 @@ public sealed class FaceRecognizer(
 
     public void Dispose()
     {
-        _detectorSession?.Dispose();
+        _faceDetector?.Dispose();
         _recognizerSession?.Dispose();
         GC.SuppressFinalize(this);
     }
-}
-
-public record FaceDetection(Rectangle BBox, float Confidence)
-{
-    public PointF[] Landmarks { get; init; } = [];
 }
 
 public record FaceVerificationResult(bool IsMatch, float Confidence, string Message);

@@ -10,59 +10,70 @@ class Program
     {
         var modelPathOption = new Option<string?>(
             "--model",
-            description: "Path to the ONNX model file for object detection (optional)");
+            description: "Path to the ONNX model file (optional)");
+
+        var modeOption = new Option<string>(
+            "--mode",
+            getDefaultValue: () => "objects",
+            description: "Detection mode: 'objects' for object detection, 'faces' for face detection with landmarks");
 
         var confidenceOption = new Option<float>(
             "--confidence",
             getDefaultValue: () => 0.5f,
-            description: "Confidence threshold for object detection");
+            description: "Confidence threshold for detection");
 
         var nmsOption = new Option<float>(
             "--nms",
             getDefaultValue: () => 0.4f,
-            description: "NMS threshold for object detection");
+            description: "NMS threshold for detection");
 
         var cameraIndexOption = new Option<int>(
             "--camera",
             getDefaultValue: () => 0,
             description: "Camera index (default: 0)");
 
-        var rootCommand = new RootCommand("Real-time object detection with camera using OpenCV");
+        var rootCommand = new RootCommand("Real-time detection with camera using OpenCV (supports objects and faces with landmarks)");
         rootCommand.AddOption(modelPathOption);
+        rootCommand.AddOption(modeOption);
         rootCommand.AddOption(confidenceOption);
         rootCommand.AddOption(nmsOption);
         rootCommand.AddOption(cameraIndexOption);
 
-        rootCommand.SetHandler((string? modelPath, float confidence, float nms, int cameraIndex) =>
+        rootCommand.SetHandler((string? modelPath, string mode, float confidence, float nms, int cameraIndex) =>
         {
-            Environment.ExitCode = RunCameraTest(modelPath, confidence, nms, cameraIndex);
-        }, modelPathOption, confidenceOption, nmsOption, cameraIndexOption);
+            Environment.ExitCode = RunCameraTest(modelPath, mode, confidence, nms, cameraIndex);
+        }, modelPathOption, modeOption, confidenceOption, nmsOption, cameraIndexOption);
 
         return await rootCommand.InvokeAsync(args);
     }
 
-    static int RunCameraTest(string? modelPath, float confidenceThreshold, float nmsThreshold, int cameraIndex)
+    static int RunCameraTest(string? modelPath, string mode, float confidenceThreshold, float nmsThreshold, int cameraIndex)
     {
         bool enableDetection = !string.IsNullOrEmpty(modelPath);
+        bool isFaceMode = mode.Equals("faces", StringComparison.OrdinalIgnoreCase);
 
         if (enableDetection)
         {
-            Console.WriteLine("Starting real-time object detection...");
+            var detectionType = isFaceMode ? "face detection with landmarks" : "object detection";
+            Console.WriteLine($"Starting real-time {detectionType}...");
             Console.WriteLine($"Model: {modelPath}");
+            Console.WriteLine($"Mode: {mode}");
             Console.WriteLine($"Confidence threshold: {confidenceThreshold}");
             Console.WriteLine($"NMS threshold: {nmsThreshold}");
         }
         else
         {
-            Console.WriteLine("Starting camera test (no object detection)...");
+            Console.WriteLine("Starting camera test (no detection)...");
         }
 
         Console.WriteLine($"Camera index: {cameraIndex}");
         Console.WriteLine("Press 'q' or ESC to quit");
 
         VideoCapture? capture = null;
-        YoloDetector? detector = null;
-        RealTimeObjectDetector? rtDetector = null;
+        YoloDetector? objectDetector = null;
+        YoloFaceDetector? faceDetector = null;
+        RealTimeObjectDetector? rtObjectDetector = null;
+        RealTimeFaceDetector? rtFaceDetector = null;
 
         try
         {
@@ -74,8 +85,23 @@ class Program
                     return 1;
                 }
 
-                detector = new YoloDetector(modelPath!, CocoClassNames.Names, confidenceThreshold, nmsThreshold);
-                Console.WriteLine("YOLO detector initialized successfully.");
+                if (isFaceMode)
+                {
+                    faceDetector = new YoloFaceDetector(
+                        modelPath!,
+                        confidenceThreshold,
+                        YoloFaceModelType.Auto);
+                    Console.WriteLine("YOLOv8n-face detector initialized successfully.");
+                }
+                else
+                {
+                    objectDetector = new YoloDetector(
+                        modelPath!,
+                        CocoClassNames.Names,
+                        confidenceThreshold,
+                        nmsThreshold);
+                    Console.WriteLine("YOLO object detector initialized successfully.");
+                }
             }
 
             capture = new VideoCapture(cameraIndex);
@@ -92,11 +118,20 @@ class Program
 
             Console.WriteLine($"Camera resolution: {frameWidth}x{frameHeight} @ {fps} FPS");
 
-            if (enableDetection && detector != null)
+            if (enableDetection)
             {
-                Console.WriteLine("Starting real-time object detection...");
-                rtDetector = new RealTimeObjectDetector(detector, capture);
-                rtDetector.Start();
+                if (isFaceMode && faceDetector != null)
+                {
+                    Console.WriteLine("Starting real-time face detection with landmarks...");
+                    rtFaceDetector = new RealTimeFaceDetector(faceDetector, capture);
+                    rtFaceDetector.Start();
+                }
+                else if (!isFaceMode && objectDetector != null)
+                {
+                    Console.WriteLine("Starting real-time object detection...");
+                    rtObjectDetector = new RealTimeObjectDetector(objectDetector, capture);
+                    rtObjectDetector.Start();
+                }
             }
             else
             {
@@ -114,19 +149,17 @@ class Program
         }
         finally
         {
-            rtDetector?.Dispose();
-            detector?.Dispose();
+            rtFaceDetector?.Dispose();
+            rtObjectDetector?.Dispose();
+            faceDetector?.Dispose();
+            objectDetector?.Dispose();
             capture?.Dispose();
             Cv2.DestroyAllWindows();
 
-            if (enableDetection)
-            {
-                Console.WriteLine("Object detection test completed.");
-            }
-            else
-            {
-                Console.WriteLine("Camera test completed.");
-            }
+            var completionMessage = enableDetection
+                ? isFaceMode ? "Face detection test completed." : "Object detection test completed."
+                : "Camera test completed.";
+            Console.WriteLine(completionMessage);
         }
     }
 
