@@ -9,6 +9,7 @@ public static class Constants
         public const int FaceRecognitionInputSize = 224;
         public const float FacePaddingRatio = 0.2f;
         public const float NormalizationMaxValue = 255.0f;
+        public const float DownscaleRatio = 0.333f; // 処理速度向上のための解像度縮小比率
     }
 
     public static class Thresholds
