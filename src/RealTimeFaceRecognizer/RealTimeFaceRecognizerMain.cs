@@ -76,11 +76,9 @@ public class RealTimeFaceRecognizerMain
 
           // 元の解像度の画像から顔埋め込みベクトルを抽出
           var embedding = await _faceRecognizer.ExtractFaceEmbeddingAsync(originalImage, upscaledBBox);
-          _referenceEmbeddings.Add(new ReferenceEmbedding
-          {
-            Embedding = embedding,
-            SourceFile = Path.GetFileName(imagePath)
-          });
+          _referenceEmbeddings.Add(new ReferenceEmbedding(
+    embedding,
+    Path.GetFileName(imagePath)));
 
           imageStopwatch.Stop();
           Console.WriteLine($"  処理時間: {imageStopwatch.ElapsedMilliseconds}ms");
@@ -239,14 +237,12 @@ public class RealTimeFaceRecognizerMain
         Console.WriteLine($"[顔{i + 1}] 判定結果: {matchLevel} (類似度: {maxSimilarity:F3})");
 
         // 結果には元の解像度の座標を使用
-        results.Add(new FaceRecognitionResult
-        {
-          BoundingBox = upscaledBBox,
-          Confidence = face.Confidence,
-          Similarity = maxSimilarity,
-          MatchSource = bestMatchSource,
-          Angles = face.Angles
-        });
+        results.Add(new FaceRecognitionResult(
+            upscaledBBox,
+            face.Confidence,
+            maxSimilarity,
+            bestMatchSource,
+            face.Angles));
       }
     }
     catch (Exception ex)
@@ -339,18 +335,14 @@ public class RealTimeFaceRecognizerMain
     );
   }
 
-  private class ReferenceEmbedding
-  {
-    public float[] Embedding { get; set; } = Array.Empty<float>();
-    public string SourceFile { get; set; } = string.Empty;
-  }
+  private sealed record ReferenceEmbedding(
+    float[] Embedding,
+    string SourceFile);
 
-  private class FaceRecognitionResult
-  {
-    public Rectangle BoundingBox { get; set; }
-    public float Confidence { get; set; }
-    public float Similarity { get; set; }
-    public string MatchSource { get; set; } = string.Empty;
-    public FaceAngles? Angles { get; set; }
-  }
+  private sealed record FaceRecognitionResult(
+      Rectangle BoundingBox,
+      float Confidence,
+      float Similarity,
+      string MatchSource,
+      FaceAngles? Angles = null);
 }

@@ -155,7 +155,8 @@ public static class FaceDetectionRenderer
         var center = new Point(faceRect.X + faceRect.Width / 2, faceRect.Y + faceRect.Height / 2);
 
         // ヨー角による左右の向き（水平矢印）
-        if (Math.Abs(angles.Yaw) > 5) // 5度以上の角度で表示
+        const float ANGLE_DISPLAY_THRESHOLD = 5.0f; // 5度以上で表示
+        if (Math.Abs(angles.Yaw) > ANGLE_DISPLAY_THRESHOLD)
         {
             var yawLength = (int)(Math.Abs(angles.Yaw) * 1.5); // 角度に比例した長さ
             yawLength = Math.Min(yawLength, 50); // 最大長制限
@@ -169,7 +170,7 @@ public static class FaceDetectionRenderer
         }
 
         // ピッチ角による上下の向き（垂直矢印）
-        if (Math.Abs(angles.Pitch) > 5) // 5度以上の角度で表示
+        if (Math.Abs(angles.Pitch) > ANGLE_DISPLAY_THRESHOLD)
         {
             var pitchLength = (int)(Math.Abs(angles.Pitch) * 1.5); // 角度に比例した長さ
             pitchLength = Math.Min(pitchLength, 50); // 最大長制限
@@ -183,7 +184,7 @@ public static class FaceDetectionRenderer
         }
 
         // ロール角による傾き（回転した線）
-        if (Math.Abs(angles.Roll) > 5) // 5度以上の角度で表示
+        if (Math.Abs(angles.Roll) > ANGLE_DISPLAY_THRESHOLD)
         {
             var rollLength = 30;
             var rollRadians = angles.Roll * Math.PI / 180.0;

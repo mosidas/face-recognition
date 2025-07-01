@@ -80,20 +80,20 @@ public static class FaceAngleCalculator
         Math.Pow(mouthCenter.X - nose.X, 2) +
         Math.Pow(mouthCenter.Y - nose.Y, 2));
 
-    // 標準的な顔の比率から逸脱している場合のピッチ推定
-    // 正面向きの場合の理想的な比率を基準とする
-    const float idealRatio = 1.2f; // 目-鼻距離 / 鼻-口距離の理想比率
+    // 正面向きの場合の理想的な比率（経験値ベース）
+    const float IDEAL_EYE_NOSE_TO_NOSE_MOUTH_RATIO = 1.2f;
 
     if (eyeToNoseDistance > 0 && noseToMouthDistance > 0)
     {
       var currentRatio = (float)(eyeToNoseDistance / noseToMouthDistance);
-      var ratioDeviation = currentRatio - idealRatio;
+      var ratioDeviation = currentRatio - IDEAL_EYE_NOSE_TO_NOSE_MOUTH_RATIO;
 
       // 比率の変化をピッチ角に変換（経験値ベース）
-      var pitchDegrees = ratioDeviation * 30.0f; // 調整可能なスケールファクター
+      const float PITCH_SCALE_FACTOR = 30.0f;
+      var pitchDegrees = ratioDeviation * PITCH_SCALE_FACTOR;
 
       // -90°～90°の範囲に制限
-      pitchDegrees = Math.Max(-90, Math.Min(90, pitchDegrees));
+      //pitchDegrees = Math.Max(-90, Math.Min(90, pitchDegrees));
 
       return pitchDegrees;
     }
@@ -129,12 +129,12 @@ public static class FaceAngleCalculator
       // 横方向オフセットを目の間隔で正規化
       var normalizedOffset = horizontalOffset / eyeDistance;
 
-      // 正規化されたオフセットをヨー角に変換
-      // 経験値ベースのスケーリング
-      var yawDegrees = (float)(normalizedOffset * 60.0); // 調整可能なスケールファクター
+      // 正規化されたオフセットをヨー角に変換（経験値ベース）
+      const float YAW_SCALE_FACTOR = 60.0f;
+      var yawDegrees = (float)(normalizedOffset * YAW_SCALE_FACTOR);
 
       // -90°～90°の範囲に制限
-      yawDegrees = Math.Max(-90, Math.Min(90, yawDegrees));
+      //yawDegrees = Math.Max(-90, Math.Min(90, yawDegrees));
 
       return yawDegrees;
     }
@@ -171,8 +171,10 @@ public static class FaceAngleCalculator
     var mouthRollRadians = Math.Atan2(mouthVector.Y, mouthVector.X);
     var mouthRoll = (float)(mouthRollRadians * 180.0 / Math.PI);
 
-    // 目と口の角度の平均を取る（重み付き）
-    var weightedRoll = (eyeRoll * 0.7f + mouthRoll * 0.3f);
+    // 目と口の角度の重み付き平均（目の方が安定）
+    const float EYE_WEIGHT = 0.7f;
+    const float MOUTH_WEIGHT = 0.3f;
+    var weightedRoll = (eyeRoll * EYE_WEIGHT + mouthRoll * MOUTH_WEIGHT);
 
     // -180°～180°の範囲に正規化
     if (weightedRoll > 180) weightedRoll -= 360;
@@ -213,19 +215,20 @@ public static class FaceAngleCalculator
       var upperRatio = eyeToNoseY / faceHeight;
       var lowerRatio = noseToMouthY / faceHeight;
 
-      // 理想的な比率（正面向き）
-      const float idealUpperRatio = 0.4f;
-      const float idealLowerRatio = 0.6f;
+      // 理想的な比率（正面向き時の経験値）
+      const float IDEAL_UPPER_FACE_RATIO = 0.4f;
+      const float IDEAL_LOWER_FACE_RATIO = 0.6f;
 
       // 比率の逸脱からピッチを推定
-      var upperDeviation = upperRatio - idealUpperRatio;
-      var lowerDeviation = lowerRatio - idealLowerRatio;
+      var upperDeviation = upperRatio - IDEAL_UPPER_FACE_RATIO;
+      var lowerDeviation = lowerRatio - IDEAL_LOWER_FACE_RATIO;
 
       // 上下の逸脱を統合してピッチ角を計算
       var pitchDegrees = (upperDeviation - lowerDeviation) * 100.0f;
 
       // -90°～90°の範囲に制限
-      return Math.Max(-90, Math.Min(90, pitchDegrees));
+      //return Math.Max(-90, Math.Min(90, pitchDegrees));
+      return pitchDegrees;
     }
 
     return 0.0f;
@@ -273,17 +276,22 @@ public static class FaceAngleCalculator
       var normalizedEyeAsymmetry = eyeAsymmetry / faceWidth;
       var normalizedMouthAsymmetry = mouthAsymmetry / faceWidth;
 
-      // 重み付き統合
+      // 重み付き統合（鼻の位置が最も信頼性が高い）
+      const float NOSE_WEIGHT = 0.5f;
+      const float EYE_ASYMMETRY_WEIGHT = 0.3f;
+      const float MOUTH_ASYMMETRY_WEIGHT = 0.2f;
       var combinedAsymmetry =
-          normalizedNoseOffset * 0.5f +
-          normalizedEyeAsymmetry * 0.3f +
-          normalizedMouthAsymmetry * 0.2f;
+          normalizedNoseOffset * NOSE_WEIGHT +
+          normalizedEyeAsymmetry * EYE_ASYMMETRY_WEIGHT +
+          normalizedMouthAsymmetry * MOUTH_ASYMMETRY_WEIGHT;
 
-      // ヨー角への変換
-      var yawDegrees = combinedAsymmetry * 80.0f; // スケールファクター
+      // ヨー角への変換（経験値ベース）
+      const float ADVANCED_YAW_SCALE_FACTOR = 80.0f;
+      var yawDegrees = combinedAsymmetry * ADVANCED_YAW_SCALE_FACTOR;
 
       // -90°～90°の範囲に制限
-      return Math.Max(-90, Math.Min(90, yawDegrees));
+      //return Math.Max(-90, Math.Min(90, yawDegrees));
+      return yawDegrees;
     }
 
     return 0.0f;

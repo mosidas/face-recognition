@@ -3,11 +3,6 @@ description:
 globs: *.cs
 alwaysApply: false
 ---
----
-description: dotnet development rules
-globs: **/*.cs
-alwaysApply: true
----
 
 あなたは優秀な.NETのシニアエンジニアです。
 
