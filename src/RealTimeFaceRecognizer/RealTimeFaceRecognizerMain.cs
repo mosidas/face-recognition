@@ -194,6 +194,12 @@ public class RealTimeFaceRecognizerMain
         Console.WriteLine($"[顔{i + 1}] ダウンスケール位置: ({face.BBox.X}, {face.BBox.Y}), サイズ: {face.BBox.Width}x{face.BBox.Height}");
         Console.WriteLine($"[顔{i + 1}] 元解像度位置: ({upscaledBBox.X}, {upscaledBBox.Y}), サイズ: {upscaledBBox.Width}x{upscaledBBox.Height}, 検出信頼度: {face.Confidence:F3}");
 
+        // 顔の角度情報をログ出力
+        if (face.Angles != null)
+        {
+          Console.WriteLine($"[顔{i + 1}] 顔の角度: Roll={face.Angles.Roll:F1}, Pitch={face.Angles.Pitch:F1}, Yaw={face.Angles.Yaw:F1}");
+        }
+
         // 顔埋め込みベクトルの抽出（元の解像度の画像から）
         var embeddingStopwatch = Stopwatch.StartNew();
         var embedding = await _faceRecognizer.ExtractFaceEmbeddingAsync(originalFrame, upscaledBBox);
@@ -238,7 +244,8 @@ public class RealTimeFaceRecognizerMain
           BoundingBox = upscaledBBox,
           Confidence = face.Confidence,
           Similarity = maxSimilarity,
-          MatchSource = bestMatchSource
+          MatchSource = bestMatchSource,
+          Angles = face.Angles
         });
       }
     }
@@ -280,10 +287,17 @@ public class RealTimeFaceRecognizerMain
 
       // 類似度の表示
       var label = $"Sim: {result.Similarity:F3}";
+
+      // 角度情報も表示に追加
+      if (result.Angles != null)
+      {
+        label += $" | R:{result.Angles.Roll:F0} P:{result.Angles.Pitch:F0} Y:{result.Angles.Yaw:F0}";
+      }
+
       var labelPos = new OpenCvSharp.Point(rect.X, rect.Y - 10);
 
       // 背景付きテキスト描画（読みやすさのため）
-      var textSize = Cv2.GetTextSize(label, HersheyFonts.HersheySimplex, 0.6, 1, out var baseline);
+      var textSize = Cv2.GetTextSize(label, HersheyFonts.HersheySimplex, 0.5, 1, out var baseline);
       var textRect = new Rect(
           labelPos.X,
           labelPos.Y - textSize.Height - baseline,
@@ -292,7 +306,7 @@ public class RealTimeFaceRecognizerMain
       );
 
       Cv2.Rectangle(frame, textRect, new Scalar(0, 0, 0), -1);
-      Cv2.PutText(frame, label, labelPos, HersheyFonts.HersheySimplex, 0.6, color, 1);
+      Cv2.PutText(frame, label, labelPos, HersheyFonts.HersheySimplex, 0.5, color, 1);
     }
   }
 
@@ -337,5 +351,6 @@ public class RealTimeFaceRecognizerMain
     public float Confidence { get; set; }
     public float Similarity { get; set; }
     public string MatchSource { get; set; } = string.Empty;
+    public FaceAngles? Angles { get; set; }
   }
 }

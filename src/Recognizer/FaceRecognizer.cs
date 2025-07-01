@@ -10,7 +10,8 @@ namespace Recognizer;
 public sealed record FaceDetection(
     Rectangle BBox,
     float Confidence,
-    FaceLandmarks? Landmarks = null);
+    FaceLandmarks? Landmarks = null,
+    FaceAngles? Angles = null);
 
 /// <summary>
 /// 顔のランドマーク座標

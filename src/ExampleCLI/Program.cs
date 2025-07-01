@@ -70,6 +70,14 @@ internal sealed class Program
                     Console.WriteLine($"    口左: ({face.Landmarks.LeftMouth.X:F1}, {face.Landmarks.LeftMouth.Y:F1})");
                     Console.WriteLine($"    口右: ({face.Landmarks.RightMouth.X:F1}, {face.Landmarks.RightMouth.Y:F1})");
                 }
+
+                if (face.Angles != null)
+                {
+                    Console.WriteLine($"  顔の角度:");
+                    Console.WriteLine($"    ロール: {face.Angles.Roll:F1} (頭の傾き)");
+                    Console.WriteLine($"    ピッチ: {face.Angles.Pitch:F1} (上下の向き)");
+                    Console.WriteLine($"    ヨー: {face.Angles.Yaw:F1} (左右の向き)");
+                }
             }
 
             await SaveFaceDetectionResult(imagePath, faces).ConfigureAwait(false);

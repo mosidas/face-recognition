@@ -205,15 +205,19 @@ public sealed class YoloFaceDetector(
                 RightMouth: new PointF(rightMouthX * scaleX, rightMouthY * scaleY)
             );
 
+            // ランドマークから顔の角度を計算
+            var angles = FaceAngleCalculator.CalculateAngles(landmarks);
+
             if (_enableDebug && validDetectionCount < 5)
             {
                 Console.WriteLine($"有効検出 {validDetectionCount}: スケール後座標=({scaledCx:F1}, {scaledCy:F1}, {scaledW:F1}, {scaledH:F1}), BBox={boundingBox}");
                 Console.WriteLine($"  スケール後ランドマーク: 左目=({landmarks.LeftEye.X:F1}, {landmarks.LeftEye.Y:F1}), 右目=({landmarks.RightEye.X:F1}, {landmarks.RightEye.Y:F1})");
+                Console.WriteLine($"  顔の角度: Roll={angles.Roll:F1}, Pitch={angles.Pitch:F1}, Yaw={angles.Yaw:F1}");
             }
 
             if (IsValidBoundingBox(boundingBox))
             {
-                detections.Add(new FaceDetection(boundingBox, confidence, landmarks));
+                detections.Add(new FaceDetection(boundingBox, confidence, landmarks, angles));
                 validDetectionCount++;
             }
         }
@@ -286,7 +290,7 @@ public sealed class YoloFaceDetector(
 
             if (IsValidBoundingBox(boundingBox))
             {
-                detections.Add(new FaceDetection(boundingBox, confidence, null)); // 標準形式はランドマークなし
+                detections.Add(new FaceDetection(boundingBox, confidence, null, null)); // 標準形式はランドマーク・角度なし
                 validDetectionCount++;
             }
         }
@@ -334,7 +338,7 @@ public sealed class YoloFaceDetector(
             var boundingBox = CreateBoundingBox(cx, cy, w, h, result.ImageSize);
             if (IsValidBoundingBox(boundingBox))
             {
-                detections.Add(new FaceDetection(boundingBox, confidence, null)); // YOLOv11はランドマークなし
+                detections.Add(new FaceDetection(boundingBox, confidence, null, null)); // YOLOv11はランドマーク・角度なし
             }
         }
 
@@ -388,13 +392,13 @@ public sealed class YoloFaceDetector(
                     (int)nmsResult.BBox.Right,
                     (int)nmsResult.BBox.Bottom);
 
-                // NMS後の結果に最も近い元の検出結果を見つけてランドマーク情報を復元
+                // NMS後の結果に最も近い元の検出結果を見つけてランドマーク・角度情報を復元
                 var originalDetection = detections
                     .Where(d => Math.Abs(d.Confidence - nmsResult.Confidence) < 0.001f)
                     .Where(d => Math.Abs(d.BBox.X - bbox.X) < 5 && Math.Abs(d.BBox.Y - bbox.Y) < 5)
                     .FirstOrDefault();
 
-                return new FaceDetection(bbox, nmsResult.Confidence, originalDetection?.Landmarks);
+                return new FaceDetection(bbox, nmsResult.Confidence, originalDetection?.Landmarks, originalDetection?.Angles);
             })];
     }
 

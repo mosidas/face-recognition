@@ -38,6 +38,12 @@ public static class FaceDetectionRenderer
         {
             DrawLandmarks(frame, face.Landmarks);
         }
+
+        // 角度情報描画（YOLOv8n-faceの場合）
+        if (face.Angles != null)
+        {
+            DrawFaceAngles(frame, face, rect);
+        }
     }
 
     /// <summary>
@@ -46,8 +52,15 @@ public static class FaceDetectionRenderer
     private static void DrawFaceLabel(Mat frame, FaceDetection face, Rect rect, Scalar color)
     {
         var label = $"Face: {face.Confidence:F2}";
+
+        // 角度情報をラベルに追加
+        if (face.Angles != null)
+        {
+            label += $" | R:{face.Angles.Roll:F0} P:{face.Angles.Pitch:F0} Y:{face.Angles.Yaw:F0}";
+        }
+
         var font = HersheyFonts.HersheySimplex;
-        var fontScale = 0.6;
+        var fontScale = 0.5; // 角度情報追加により少し小さくする
         var thickness = 1;
 
         var textSize = Cv2.GetTextSize(label, font, fontScale, thickness, out int baseline);
@@ -71,6 +84,123 @@ public static class FaceDetectionRenderer
             new Scalar(255, 255, 255),
             thickness
         );
+    }
+
+    /// <summary>
+    /// 顔の角度情報の描画
+    /// </summary>
+    private static void DrawFaceAngles(Mat frame, FaceDetection face, Rect faceRect)
+    {
+        if (face.Angles == null) return;
+
+        var angles = face.Angles;
+
+        // 角度情報のテキスト位置（顔の右下）
+        var angleTextPos = new Point(faceRect.Right + 5, faceRect.Bottom - 40);
+        var font = HersheyFonts.HersheySimplex;
+        var fontScale = 0.5f;
+        var thickness = 1;
+        var textColor = new Scalar(255, 255, 255); // 白
+        var bgColor = new Scalar(0, 0, 0, 180); // 半透明黒
+
+        // 角度情報テキスト
+        var angleTexts = new[]
+        {
+            $"Roll: {angles.Roll:F1}",
+            $"Pitch: {angles.Pitch:F1}",
+            $"Yaw: {angles.Yaw:F1}"
+        };
+
+        // 背景矩形のサイズ計算
+        var maxTextWidth = 0;
+        var totalTextHeight = 0;
+        var lineSpacing = 5;
+
+        foreach (var text in angleTexts)
+        {
+            var textSize = Cv2.GetTextSize(text, font, fontScale, thickness, out var baseline);
+            maxTextWidth = Math.Max(maxTextWidth, textSize.Width);
+            totalTextHeight += textSize.Height + lineSpacing;
+        }
+
+        // 背景矩形描画
+        var bgRect = new Rect(
+            angleTextPos.X - 5,
+            angleTextPos.Y - totalTextHeight - 5,
+            maxTextWidth + 10,
+            totalTextHeight + 10
+        );
+        Cv2.Rectangle(frame, bgRect, bgColor, -1);
+
+        // 各角度テキストを描画
+        var currentY = angleTextPos.Y - totalTextHeight + 15;
+        foreach (var text in angleTexts)
+        {
+            Cv2.PutText(frame, text, new Point(angleTextPos.X, currentY), font, fontScale, textColor, thickness);
+            currentY += 18;
+        }
+
+        // 顔の向きを視覚的に表示（矢印で方向表示）
+        DrawFaceOrientation(frame, face, faceRect);
+    }
+
+    /// <summary>
+    /// 顔の向きを矢印で視覚的に表示
+    /// </summary>
+    private static void DrawFaceOrientation(Mat frame, FaceDetection face, Rect faceRect)
+    {
+        if (face.Angles == null) return;
+
+        var angles = face.Angles;
+        var center = new Point(faceRect.X + faceRect.Width / 2, faceRect.Y + faceRect.Height / 2);
+
+        // ヨー角による左右の向き（水平矢印）
+        if (Math.Abs(angles.Yaw) > 5) // 5度以上の角度で表示
+        {
+            var yawLength = (int)(Math.Abs(angles.Yaw) * 1.5); // 角度に比例した長さ
+            yawLength = Math.Min(yawLength, 50); // 最大長制限
+
+            var yawEnd = angles.Yaw > 0
+                ? new Point(center.X + yawLength, center.Y) // 右向き
+                : new Point(center.X - yawLength, center.Y); // 左向き
+
+            // ヨー矢印（青色）
+            Cv2.ArrowedLine(frame, center, yawEnd, new Scalar(255, 0, 0), 2, tipLength: 0.3);
+        }
+
+        // ピッチ角による上下の向き（垂直矢印）
+        if (Math.Abs(angles.Pitch) > 5) // 5度以上の角度で表示
+        {
+            var pitchLength = (int)(Math.Abs(angles.Pitch) * 1.5); // 角度に比例した長さ
+            pitchLength = Math.Min(pitchLength, 50); // 最大長制限
+
+            var pitchEnd = angles.Pitch > 0
+                ? new Point(center.X, center.Y - pitchLength) // 上向き
+                : new Point(center.X, center.Y + pitchLength); // 下向き
+
+            // ピッチ矢印（緑色）
+            Cv2.ArrowedLine(frame, center, pitchEnd, new Scalar(0, 255, 0), 2, tipLength: 0.3);
+        }
+
+        // ロール角による傾き（回転した線）
+        if (Math.Abs(angles.Roll) > 5) // 5度以上の角度で表示
+        {
+            var rollLength = 30;
+            var rollRadians = angles.Roll * Math.PI / 180.0;
+
+            var rollEnd = new Point(
+                center.X + (int)(rollLength * Math.Cos(rollRadians)),
+                center.Y + (int)(rollLength * Math.Sin(rollRadians))
+            );
+
+            // ロール線（赤色、少し太め）
+            Cv2.Line(frame, center, rollEnd, new Scalar(0, 0, 255), 3);
+
+            // ロール角度を表す小さな円弧（オプション）
+            var arcRadius = 20;
+            var arcColor = new Scalar(0, 0, 255);
+            Cv2.Ellipse(frame, center, new Size(arcRadius, arcRadius), 0, 0, angles.Roll, arcColor, 1);
+        }
     }
 
     /// <summary>
