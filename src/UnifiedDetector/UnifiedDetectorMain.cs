@@ -258,12 +258,12 @@ public sealed class UnifiedDetectorMain : IDisposable
                 if (authenticatedSmartphones.Contains(i))
                 {
                     color = new Scalar(255, 0, 255); // 認証済みスマートホンは紫
-                    label += " [認証済み]";
+                    label += " [AUTH]";
                 }
                 else
                 {
                     color = new Scalar(0, 165, 255); // 未認証スマートホンはオレンジ
-                    label += " [未認証]";
+                    label += " [UNAUTH]";
                 }
             }
             
