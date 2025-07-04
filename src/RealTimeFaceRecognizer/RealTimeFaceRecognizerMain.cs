@@ -293,7 +293,7 @@ public class RealTimeFaceRecognizerMain
       var labelPos = new OpenCvSharp.Point(rect.X, rect.Y - 10);
 
       // 背景付きテキスト描画（読みやすさのため）
-      var textSize = Cv2.GetTextSize(label, HersheyFonts.HersheySimplex, 0.5, 1, out var baseline);
+      var textSize = Cv2.GetTextSize(label, HersheyFonts.HersheyDuplex, 1, 2, out var baseline);
       var textRect = new Rect(
           labelPos.X,
           labelPos.Y - textSize.Height - baseline,
@@ -302,7 +302,7 @@ public class RealTimeFaceRecognizerMain
       );
 
       Cv2.Rectangle(frame, textRect, new Scalar(0, 0, 0), -1);
-      Cv2.PutText(frame, label, labelPos, HersheyFonts.HersheySimplex, 0.5, color, 1);
+      Cv2.PutText(frame, label, labelPos, HersheyFonts.HersheyDuplex, 1, color, 2);
     }
   }
 

@@ -80,7 +80,7 @@ internal sealed class Program
                 }
             }
 
-            await SaveFaceDetectionResult(imagePath, faces).ConfigureAwait(false);
+            SaveFaceDetectionResult(imagePath, faces);
         }
         catch (Exception ex)
         {
@@ -88,7 +88,7 @@ internal sealed class Program
         }
     }
 
-    private static async Task SaveFaceDetectionResult(string imagePath, List<FaceDetection> faces)
+    private static void SaveFaceDetectionResult(string imagePath, List<FaceDetection> faces)
     {
         Console.Write("\n結果画像を保存しますか？ (y/n): ");
         if (Console.ReadLine()?.ToLower() != "y")

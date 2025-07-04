@@ -25,7 +25,7 @@ try
   Console.WriteLine();
 
   // 顔認識器の初期化
-  using var faceRecognizer = new FaceRecognizer(detectorModelPath, recognizerModelPath, enableDebug: true);
+  using var faceRecognizer = new FaceRecognizer(detectorModelPath, recognizerModelPath, enableDebug: false);
 
   // リアルタイム顔認識器の初期化
   var realTimeRecognizer = new RealTimeFaceRecognizerMain(faceRecognizer, faceImagesPath);
