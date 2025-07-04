@@ -219,8 +219,11 @@ public sealed class UnifiedDetectorMain : IDisposable
     /// </summary>
     private static void DrawResults(Mat frame, UnifiedResults results)
     {
+        // スマートホンの認証処理
+        var authenticatedSmartphones = IdentifyAuthenticatedSmartphones(results);
+
         // 物体検出結果の描画
-        DrawObjectDetections(frame, results.ObjectDetections);
+        DrawObjectDetections(frame, results.ObjectDetections, authenticatedSmartphones);
 
         // 顔認証結果の描画
         DrawFaceRecognitions(frame, results.FaceRecognitions);
@@ -232,10 +235,11 @@ public sealed class UnifiedDetectorMain : IDisposable
     /// <summary>
     /// 物体検出結果の描画
     /// </summary>
-    private static void DrawObjectDetections(Mat frame, List<Detection> detections)
+    private static void DrawObjectDetections(Mat frame, List<Detection> detections, HashSet<int> authenticatedSmartphones)
     {
-        foreach (var detection in detections)
+        for (int i = 0; i < detections.Count; i++)
         {
+            var detection = detections[i];
             var rect = new Rect(
                 (int)detection.BBox.X,
                 (int)detection.BBox.Y,
@@ -243,13 +247,29 @@ public sealed class UnifiedDetectorMain : IDisposable
                 (int)detection.BBox.Height
             );
 
-            // 物体検出は緑系の色で描画
-            var color = new Scalar(0, 255, 0);
+            // スマートホンの認証状態に応じて色を変更
+            var color = new Scalar(0, 255, 0); // デフォルトは緑
+            var label = $"{detection.ClassName}: {detection.Confidence:F2}";
+            
+            if (detection.ClassName.ToLower().Contains("cell phone") || 
+                detection.ClassName.ToLower().Contains("phone") ||
+                detection.ClassName.ToLower().Contains("smartphone"))
+            {
+                if (authenticatedSmartphones.Contains(i))
+                {
+                    color = new Scalar(255, 0, 255); // 認証済みスマートホンは紫
+                    label += " [認証済み]";
+                }
+                else
+                {
+                    color = new Scalar(0, 165, 255); // 未認証スマートホンはオレンジ
+                    label += " [未認証]";
+                }
+            }
+            
             Cv2.Rectangle(frame, rect, color, 2);
 
-            var label = $"{detection.ClassName}: {detection.Confidence:F2}";
             var labelPos = new OpenCvSharp.Point(rect.X, rect.Y - 5);
-
             Cv2.PutText(frame, label, labelPos, HersheyFonts.HersheyDuplex, 0.5, color, 1);
         }
     }
@@ -344,6 +364,95 @@ public sealed class UnifiedDetectorMain : IDisposable
         Cv2.Rectangle(frame, bgRect, bgColor, -1);
         Cv2.PutText(frame, stats, new OpenCvSharp.Point(20, frame.Height - 20), 
                    HersheyFonts.HersheyDuplex, 0.7, textColor, 2);
+    }
+
+    /// <summary>
+    /// 認証された顔に関連するスマートホンを特定
+    /// </summary>
+    private static HashSet<int> IdentifyAuthenticatedSmartphones(UnifiedResults results)
+    {
+        var authenticatedSmartphones = new HashSet<int>();
+
+        // 認証された顔のみを対象とする
+        var authenticatedFaces = results.FaceRecognitions
+            .Where(face => face.Similarity >= 0.4f && face.Name != "Unknown")
+            .ToList();
+
+        if (authenticatedFaces.Count == 0)
+            return authenticatedSmartphones;
+
+        // 「person」ラベルの物体を取得
+        var personDetections = results.ObjectDetections
+            .Select((detection, index) => new { Detection = detection, Index = index })
+            .Where(x => x.Detection.ClassName.ToLower() == "person")
+            .ToList();
+
+        // 各personについて処理
+        foreach (var personData in personDetections)
+        {
+            var personRect = new System.Drawing.Rectangle(
+                (int)personData.Detection.BBox.X,
+                (int)personData.Detection.BBox.Y,
+                (int)personData.Detection.BBox.Width,
+                (int)personData.Detection.BBox.Height
+            );
+
+            // このpersonの矩形内にある認証された顔を検索
+            var facesInPerson = authenticatedFaces
+                .Where(face => DoesRectanglesOverlap(personRect, face.BoundingBox))
+                .ToList();
+
+            // 認証された顔がperson内にある場合
+            if (facesInPerson.Count > 0)
+            {
+                // このpersonの矩形内にあるスマートホンを検索
+                for (int i = 0; i < results.ObjectDetections.Count; i++)
+                {
+                    var detection = results.ObjectDetections[i];
+                    
+                    // スマートホンかどうかを判定
+                    if (!IsSmartphone(detection.ClassName))
+                        continue;
+
+                    var smartphoneRect = new System.Drawing.Rectangle(
+                        (int)detection.BBox.X,
+                        (int)detection.BBox.Y,
+                        (int)detection.BBox.Width,
+                        (int)detection.BBox.Height
+                    );
+
+                    // スマートホンがpersonの矩形内にあるかを判定
+                    if (DoesRectanglesOverlap(personRect, smartphoneRect))
+                    {
+                        authenticatedSmartphones.Add(i);
+                    }
+                }
+            }
+        }
+
+        return authenticatedSmartphones;
+    }
+
+    /// <summary>
+    /// オブジェクトがスマートホンかどうかを判定
+    /// </summary>
+    private static bool IsSmartphone(string className)
+    {
+        var lowerName = className.ToLower();
+        return lowerName.Contains("cell phone") || 
+               lowerName.Contains("phone") || 
+               lowerName.Contains("smartphone");
+    }
+
+    /// <summary>
+    /// 二つの矩形が重複しているかどうかを判定
+    /// </summary>
+    private static bool DoesRectanglesOverlap(System.Drawing.Rectangle rect1, System.Drawing.Rectangle rect2)
+    {
+        return rect1.Left < rect2.Right && 
+               rect1.Right > rect2.Left && 
+               rect1.Top < rect2.Bottom && 
+               rect1.Bottom > rect2.Top;
     }
 
     public void Dispose()

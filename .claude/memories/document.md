@@ -1,9 +1,3 @@
----
-description: rule: document
-globs: **/*
-ruletype: autoattached
----
-
 - README、コードコメント等、自然言語で記載する場合は、以下の方針に従うこと
 
 ## 基本方針

@@ -1,7 +1,10 @@
 ---
-description: rule: dotnet-developmnet
-globs: **/*.cs
-ruletype: autoattached
+root: false
+targets:
+  - '*'
+description: 'rule: dotnet-developmnet'
+globs:
+  - '**/*.cs'
 ---
 
 あなたは優秀な.NETのシニアエンジニアです。

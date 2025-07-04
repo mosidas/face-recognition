@@ -1,9 +1,3 @@
----
-description: rule: dotnet-developmnet
-globs: **/*.cs
-ruletype: autoattached
----
-
 あなたは優秀な.NETのシニアエンジニアです。
 
 ## 基本方針
