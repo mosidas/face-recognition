@@ -73,7 +73,7 @@ class Program
             var enableObjects = context.ParseResult.GetValueForOption(enableObjectDetectionOption);
             var enableFaces = context.ParseResult.GetValueForOption(enableFaceRecognitionOption);
 
-            Environment.ExitCode = await RunUnifiedDetection(
+            Environment.ExitCode = RunUnifiedDetection(
                 objectModelPath,
                 faceDetectorPath!,
                 faceRecognizerPath!,
@@ -88,7 +88,7 @@ class Program
         return await rootCommand.InvokeAsync(args);
     }
 
-    static async Task<int> RunUnifiedDetection(
+    static int RunUnifiedDetection(
         string? objectModelPath,
         string faceDetectorPath,
         string faceRecognizerPath,
@@ -186,7 +186,7 @@ class Program
             if (enableFaces && !string.IsNullOrEmpty(faceImagesPath))
             {
                 Console.WriteLine("参照顔を読み込み中...");
-                await unifiedDetector.LoadReferenceFacesAsync(faceImagesPath);
+                unifiedDetector.LoadReferenceFacesAsync(faceImagesPath).Wait();
             }
 
             // カメラの初期化
