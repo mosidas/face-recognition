@@ -35,6 +35,12 @@ dotnet run --project src/UnifiedDetector/UnifiedDetector.csproj -- \
   --recognition-threshold 0.4
 ```
 
+```bash
+dotnet run --project src/UnifiedDetector/UnifiedDetector.csproj --face-detector .local/models/yolov11n-face.onnx --face-recognizer .local/models/arcface.onnx --object-model .local/models/yolo11n.onnx --face-images .local/assets/face01 --camera 1
+
+dotnet run --project src/UnifiedDetector/UnifiedDetector.csproj --face-detector .local/models/yolov11n-face.onnx --face-recognizer .local/models/arcface.onnx --object-model .local/models/yolov3-12-int8.onnx --face-images .local/assets/face01 --camera 1
+```
+
 ## ドキュメント
 
 - [システム仕様書](./docs/system-specifications.md) - 詳細な技術仕様と機能説明

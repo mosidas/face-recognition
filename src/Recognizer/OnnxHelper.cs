@@ -9,6 +9,14 @@ public static class OnnxHelper
 {
     public static InferenceSession LoadModel(string modelPath)
     {
+        // var sessionOptions = new SessionOptions
+        // {
+        //     GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_EXTENDED,
+        //     ExecutionMode = ExecutionMode.ORT_PARALLEL,
+        //     EnableCpuMemArena = true,
+        //     IntraOpNumThreads = Environment.ProcessorCount,
+        //     InterOpNumThreads = 1
+        // };
         var sessionOptions = new SessionOptions
         {
             GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_EXTENDED,
@@ -33,16 +41,31 @@ public static class OnnxHelper
     {
         return await Task.Run(() =>
         {
-            var inputMeta = session.InputMetadata.First();
-            var inputName = inputMeta.Key;
-            var inputShape = inputMeta.Value.Dimensions;
-
-            var inputTensor = PreprocessImage(inputImage, inputShape);
-
-            var inputs = new List<NamedOnnxValue>
+            var inputs = new List<NamedOnnxValue>();
+            
+            // Handle multiple inputs for YOLOv3
+            if (session.InputMetadata.Count > 1)
             {
-                NamedOnnxValue.CreateFromTensor(inputName, inputTensor)
-            };
+                // YOLOv3 format with input_1 and image_shape
+                var imageInput = session.InputMetadata.First(x => x.Key == "input_1");
+                var shapeInput = session.InputMetadata.First(x => x.Key == "image_shape");
+                
+                var inputTensor = PreprocessImage(inputImage, imageInput.Value.Dimensions);
+                var imageSizeTensor = CreateImageShapeTensor(inputImage.Size());
+                
+                inputs.Add(NamedOnnxValue.CreateFromTensor(imageInput.Key, inputTensor));
+                inputs.Add(NamedOnnxValue.CreateFromTensor(shapeInput.Key, imageSizeTensor));
+            }
+            else
+            {
+                // Standard single input for YOLOv8/v11
+                var inputMeta = session.InputMetadata.First();
+                var inputName = inputMeta.Key;
+                var inputShape = inputMeta.Value.Dimensions;
+
+                var inputTensor = PreprocessImage(inputImage, inputShape);
+                inputs.Add(NamedOnnxValue.CreateFromTensor(inputName, inputTensor));
+            }
 
             using var results = session.Run(inputs);
             return ProcessResults(results, inputImage.Size());
@@ -67,6 +90,16 @@ public static class OnnxHelper
     {
         var batchSize = inputShape[0] == -1 ? 1 : inputShape[0];
         var (channels, height, width) = GetImageDimensions(inputShape);
+        var isNHWC = inputShape.Length == 4 && (inputShape[3] == 3 || inputShape[3] == 1);
+
+        // Skip resize if dimensions are invalid (dynamic shapes)
+        if (height <= 0 || width <= 0)
+        {
+            // Use default YOLO input size for dynamic shapes
+            height = Constants.ImageProcessing.YoloInputHeight;
+            width = Constants.ImageProcessing.YoloInputWidth;
+            channels = 3;
+        }
 
         using var resized = new Mat();
         Cv2.Resize(image, resized, new OpenCvSharp.Size(width, height));
@@ -74,17 +107,41 @@ public static class OnnxHelper
         // ONNXモデルはRGB入力が標準のためBGRから変換
         using var rgb = new Mat();
         Cv2.CvtColor(resized, rgb, ColorConversionCodes.BGR2RGB);
-        var tensor = new DenseTensor<float>(new[] { batchSize, channels, height, width });
 
-        for (int y = 0; y < height; y++)
+        DenseTensor<float> tensor;
+
+        if (isNHWC)
         {
-            for (int x = 0; x < width; x++)
-            {
-                var pixel = rgb.At<Vec3b>(y, x);
+            // NHWC形式 (batch, height, width, channels) - TensorFlow/ArcFace形式
+            tensor = new DenseTensor<float>(new[] { batchSize, height, width, channels });
 
-                tensor[0, 0, y, x] = pixel[0] / Constants.ImageProcessing.NormalizationMaxValue;
-                tensor[0, 1, y, x] = pixel[1] / Constants.ImageProcessing.NormalizationMaxValue;
-                tensor[0, 2, y, x] = pixel[2] / Constants.ImageProcessing.NormalizationMaxValue;
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    var pixel = rgb.At<Vec3b>(y, x);
+
+                    tensor[0, y, x, 0] = pixel[0] / Constants.ImageProcessing.NormalizationMaxValue;
+                    tensor[0, y, x, 1] = pixel[1] / Constants.ImageProcessing.NormalizationMaxValue;
+                    tensor[0, y, x, 2] = pixel[2] / Constants.ImageProcessing.NormalizationMaxValue;
+                }
+            }
+        }
+        else
+        {
+            // NCHW形式 (batch, channels, height, width) - PyTorch形式
+            tensor = new DenseTensor<float>(new[] { batchSize, channels, height, width });
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    var pixel = rgb.At<Vec3b>(y, x);
+
+                    tensor[0, 0, y, x] = pixel[0] / Constants.ImageProcessing.NormalizationMaxValue;
+                    tensor[0, 1, y, x] = pixel[1] / Constants.ImageProcessing.NormalizationMaxValue;
+                    tensor[0, 2, y, x] = pixel[2] / Constants.ImageProcessing.NormalizationMaxValue;
+                }
             }
         }
 
@@ -105,7 +162,9 @@ public static class OnnxHelper
         }
         else
         {
-            throw new NotSupportedException($"Unsupported input shape: [{string.Join(", ", inputShape)}]");
+            // Dynamic shapes or unsupported format - return invalid dimensions
+            // This will be handled by the calling function with default values
+            return (0, 0, 0);
         }
     }
 
@@ -116,10 +175,28 @@ public static class OnnxHelper
         foreach (var result in results)
         {
             var outputName = result.Name;
-            var outputTensor = result.AsEnumerable<float>().ToArray();
-            var tensorShape = result.AsTensor<float>().Dimensions.ToArray();
-
-            inferenceResult.Outputs.Add(outputName, new OutputData(outputName, outputTensor, tensorShape));
+            
+            // Handle different output data types
+            if (result.ElementType == TensorElementType.Float)
+            {
+                var outputTensor = result.AsEnumerable<float>().ToArray();
+                var tensorShape = result.AsTensor<float>().Dimensions.ToArray();
+                inferenceResult.Outputs.Add(outputName, new OutputData(outputName, outputTensor, tensorShape));
+            }
+            else if (result.ElementType == TensorElementType.Int32)
+            {
+                // Convert int32 to float for consistent processing
+                var outputTensor = result.AsEnumerable<int>().Select(x => (float)x).ToArray();
+                var tensorShape = result.AsTensor<int>().Dimensions.ToArray();
+                inferenceResult.Outputs.Add(outputName, new OutputData(outputName, outputTensor, tensorShape));
+            }
+            else
+            {
+                // Try to handle as float by default
+                var outputTensor = result.AsEnumerable<float>().ToArray();
+                var tensorShape = result.AsTensor<float>().Dimensions.ToArray();
+                inferenceResult.Outputs.Add(outputName, new OutputData(outputName, outputTensor, tensorShape));
+            }
         }
 
         return inferenceResult;
@@ -154,6 +231,14 @@ public static class OnnxHelper
         }
 
         return selected;
+    }
+
+    private static DenseTensor<float> CreateImageShapeTensor(OpenCvSharp.Size imageSize)
+    {
+        var tensor = new DenseTensor<float>(new[] { 1, 2 });
+        tensor[0, 0] = imageSize.Height;
+        tensor[0, 1] = imageSize.Width;
+        return tensor;
     }
 
     private static float CalculateIoU(RectangleF box1, RectangleF box2)

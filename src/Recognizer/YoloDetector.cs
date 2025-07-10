@@ -30,6 +30,87 @@ public sealed class YoloDetector(
     {
         var detections = new List<Detection>();
 
+        // Check if this is YOLOv3 format (3 outputs) or YOLOv8/v11 format (1 output)
+        if (result.Outputs.Count == 3)
+        {
+            // YOLOv3 format: boxes, scores, indices
+            return ParseYoloV3Output(result);
+        }
+        else
+        {
+            // YOLOv8/v11 format: single output tensor
+            return ParseYoloV8Output(result);
+        }
+    }
+
+    private List<Detection> ParseYoloV3Output(InferenceResult result)
+    {
+        var detections = new List<Detection>();
+
+        // YOLOv3 outputs: boxes [1, N, 4], scores [1, 80, N], indices [N, 3]
+        var boxesOutput = result.Outputs["yolonms_layer_1/ExpandDims_1:0"];
+        var scoresOutput = result.Outputs["yolonms_layer_1/ExpandDims_3:0"];
+        var indicesOutput = result.Outputs["yolonms_layer_1/concat_2:0"];
+
+        var boxes = boxesOutput.Data;
+        var scores = scoresOutput.Data;
+        var indices = indicesOutput.Data;
+
+        var boxesShape = boxesOutput.Shape;
+        var scoresShape = scoresOutput.Shape;
+        var indicesShape = indicesOutput.Shape;
+
+        var imageWidth = result.ImageSize.Width;
+        var imageHeight = result.ImageSize.Height;
+
+        var numDetections = indicesShape[0];
+
+        for (int i = 0; i < numDetections; i++)
+        {
+            var batchIdx = (int)indices[i * 3];
+            var classIdx = (int)indices[i * 3 + 1];
+            var boxIdx = (int)indices[i * 3 + 2];
+
+            if (batchIdx != 0 || classIdx < 0) continue; // Only process first batch and valid classes
+
+            // Calculate score index: scores shape is [1, 80, N]
+            var scoreIdx = classIdx * scoresShape[2] + boxIdx;
+            if (scoreIdx >= scores.Length) continue;
+
+            var confidence = scores[scoreIdx];
+            if (confidence < _confidenceThreshold) continue;
+
+            // Calculate box indices: boxes shape is [1, N, 4]
+            var boxBaseIdx = boxIdx * 4;
+            if (boxBaseIdx + 3 >= boxes.Length) continue;
+
+            // Extract bounding box coordinates (already in image coordinates)
+            var y1 = boxes[boxBaseIdx + 0];
+            var x1 = boxes[boxBaseIdx + 1]; 
+            var y2 = boxes[boxBaseIdx + 2];
+            var x2 = boxes[boxBaseIdx + 3];
+
+            // Ensure valid bounding box
+            if (x2 <= x1 || y2 <= y1) continue;
+
+            var boundingBox = new RectangleF(x1, y1, x2 - x1, y2 - y1);
+
+            detections.Add(new Detection
+            {
+                ClassId = classIdx,
+                ClassName = GetClassName(classIdx),
+                Confidence = confidence,
+                BBox = boundingBox
+            });
+        }
+
+        return detections;
+    }
+
+    private List<Detection> ParseYoloV8Output(InferenceResult result)
+    {
+        var detections = new List<Detection>();
+
         // YOLOv8/v11の特殊な出力形式に対応
         var output = result.Outputs.First().Value;
         var predictions = output.Data;
