@@ -42,17 +42,17 @@ public static class OnnxHelper
         return await Task.Run(() =>
         {
             var inputs = new List<NamedOnnxValue>();
-            
+
             // Handle multiple inputs for YOLOv3
             if (session.InputMetadata.Count > 1)
             {
                 // YOLOv3 format with input_1 and image_shape
                 var imageInput = session.InputMetadata.First(x => x.Key == "input_1");
                 var shapeInput = session.InputMetadata.First(x => x.Key == "image_shape");
-                
+
                 var inputTensor = PreprocessImage(inputImage, imageInput.Value.Dimensions);
                 var imageSizeTensor = CreateImageShapeTensor(inputImage.Size());
-                
+
                 inputs.Add(NamedOnnxValue.CreateFromTensor(imageInput.Key, inputTensor));
                 inputs.Add(NamedOnnxValue.CreateFromTensor(shapeInput.Key, imageSizeTensor));
             }
@@ -175,7 +175,7 @@ public static class OnnxHelper
         foreach (var result in results)
         {
             var outputName = result.Name;
-            
+
             // Handle different output data types
             if (result.ElementType == TensorElementType.Float)
             {
