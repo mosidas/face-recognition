@@ -23,14 +23,91 @@ namespace WPFDetectorApp
         private bool _isDetectionRunning = false;
         private DateTime _startTime = DateTime.Now;
         private DateTime _lastProcessedTime = DateTime.MinValue;
-        private const double TARGET_FPS = 5.0; // 5 FPS制限
-        private readonly TimeSpan _frameInterval = TimeSpan.FromMilliseconds(1000.0 / TARGET_FPS);
+        private double _targetFps = 5.0; // 可変FPS制限
+        private TimeSpan _frameInterval = TimeSpan.FromMilliseconds(1000.0 / 5.0);
         private bool _isProcessingFrame = false;
+        private bool _isInitialized = false;
+        private CommandLineArgs? _commandLineArgs;
 
-        public MainWindow()
+        public MainWindow() : this(null)
+        {
+        }
+
+        public MainWindow(CommandLineArgs? commandLineArgs)
         {
             InitializeComponent();
+            
+            _commandLineArgs = commandLineArgs;
+            
+            // FPSコンボボックスのイベントハンドラーを設定
+            FpsComboBox.SelectionChanged += FpsComboBox_SelectionChanged;
+            
+            _isInitialized = true;
+            
+            // コマンドライン引数でUIを初期化
+            ApplyCommandLineArgs();
+            
             InitializeServices();
+        }
+
+        private void ApplyCommandLineArgs()
+        {
+            if (_commandLineArgs == null) return;
+
+            try
+            {
+                // モデルファイルパスを設定
+                if (!string.IsNullOrEmpty(_commandLineArgs.YoloModelPath))
+                {
+                    YoloModelPathTextBox.Text = _commandLineArgs.YoloModelPath;
+                }
+
+                if (!string.IsNullOrEmpty(_commandLineArgs.FaceDetectionModelPath))
+                {
+                    FaceDetectionModelPathTextBox.Text = _commandLineArgs.FaceDetectionModelPath;
+                }
+
+                if (!string.IsNullOrEmpty(_commandLineArgs.FaceRecognitionModelPath))
+                {
+                    FaceRecognitionModelPathTextBox.Text = _commandLineArgs.FaceRecognitionModelPath;
+                }
+
+                if (!string.IsNullOrEmpty(_commandLineArgs.FaceImagesPath))
+                {
+                    FacePathTextBox.Text = _commandLineArgs.FaceImagesPath;
+                }
+
+                // FPSを設定
+                if (_commandLineArgs.TargetFps.HasValue)
+                {
+                    var fps = _commandLineArgs.TargetFps.Value;
+                    foreach (ComboBoxItem item in FpsComboBox.Items)
+                    {
+                        if (double.TryParse(item.Tag?.ToString(), out double itemFps) && Math.Abs(itemFps - fps) < 0.1)
+                        {
+                            FpsComboBox.SelectedItem = item;
+                            break;
+                        }
+                    }
+                }
+
+                // 検出機能のオン/オフを設定
+                if (_commandLineArgs.ObjectDetectionEnabled.HasValue)
+                {
+                    ObjectDetectionCheckBox.IsChecked = _commandLineArgs.ObjectDetectionEnabled.Value;
+                }
+
+                if (_commandLineArgs.FaceRecognitionEnabled.HasValue)
+                {
+                    FaceRecognitionCheckBox.IsChecked = _commandLineArgs.FaceRecognitionEnabled.Value;
+                }
+
+                _logger?.Info("MainWindow", "Command line arguments applied successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error("MainWindow", $"Error applying command line arguments: {ex.Message}", ex);
+            }
         }
 
         private async void InitializeServices()
@@ -394,6 +471,30 @@ namespace WPFDetectorApp
             }
         }
 
+        private void FpsComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            // 初期化が完了していない場合は何もしない
+            if (!_isInitialized || _logger == null || StatusText == null) return;
+            
+            try
+            {
+                if (FpsComboBox?.SelectedItem is ComboBoxItem selectedItem)
+                {
+                    if (double.TryParse(selectedItem.Tag?.ToString(), out double fps))
+                    {
+                        _targetFps = fps;
+                        _frameInterval = TimeSpan.FromMilliseconds(1000.0 / fps);
+                        StatusText.Text = $"FPS changed to: {fps}";
+                        _logger.Info("MainWindow", $"Frame rate changed to {fps} FPS");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error("MainWindow", $"FPS change error: {ex.Message}", ex);
+            }
+        }
+
 
         private async void OnFrameArrived(object? sender, FrameData frameData)
         {
@@ -585,7 +686,7 @@ namespace WPFDetectorApp
             var elapsed = DateTime.Now - _startTime;
             var fps = _frameCount / elapsed.TotalSeconds;
 
-            FrameInfoText.Text = $"Frames: {_frameCount} | FPS: {fps:F1} | Camera: {sourceType}";
+            FrameInfoText.Text = $"Frames: {_frameCount} | FPS: {fps:F1} | Target: {_targetFps:F0} | Camera: {sourceType}";
             DetectionInfoText.Text = $"Objects: {results.ObjectDetections.Count} | Faces: {results.FaceRecognitions.Count}";
 
             var knownFaces = results.FaceRecognitions.Count(f => f.Name != "Unknown");
@@ -600,7 +701,7 @@ namespace WPFDetectorApp
             var elapsed = DateTime.Now - _startTime;
             var fps = _frameCount / elapsed.TotalSeconds;
 
-            FrameInfoText.Text = $"Frames: {_frameCount} | FPS: {fps:F1} | Camera: {sourceType}";
+            FrameInfoText.Text = $"Frames: {_frameCount} | FPS: {fps:F1} | Target: {_targetFps:F0} | Camera: {sourceType}";
             DetectionInfoText.Text = "Detection: Off";
         }
 

@@ -28,16 +28,59 @@ Windows.Media.Captureを使用したIRカメラ対応のリアルタイム顔認
 ```bash
 # WPFアプリケーションの実行
 dotnet run --project WPFDetectorApp/WPFDetectorApp.csproj
+
+# コマンドライン引数付きで実行
+dotnet run --project WPFDetectorApp/WPFDetectorApp.csproj -- \
+  --yolo-model models/yolo11n.onnx \
+  --face-detector models/face_detection_yunet_2023mar.onnx \
+  --face-recognizer models/face_recognition_sface_2021dec.onnx \
+  --face-images reference_faces \
+  --fps 10
 ```
 
 **WPFアプリケーション機能:**
 - **カメラ制御**: Start Camera/Stop Camera - カメラストリームの独立制御
 - **検出制御**: Start Detection/Stop Detection - 検出・認証処理の独立制御
 - **モデル設定**: UIからモデルファイルパスを指定可能
-- **リアルタイム表示**: 5FPS制限でパフォーマンス最適化
+- **FPS制御**: 1-30 FPSの可変フレームレート制御
 - **カメラ切り替え**: ドロップダウンメニューまたはショートカットキー
+- **コマンドライン引数**: 起動時に設定値を指定可能
 
-### コマンドライン実行
+### WPFアプリケーション コマンドライン引数
+
+```bash
+# ヘルプ表示
+dotnet run --project WPFDetectorApp/WPFDetectorApp.csproj -- --help
+
+# 引数一覧
+--yolo-model, -y <path>           YOLOモデルファイルパス (.onnx)
+--face-detector, -fd <path>       顔検出モデルファイルパス (.onnx)
+--face-recognizer, -fr <path>     顔認識モデルファイルパス (.onnx)
+--face-images, -fi <path>         顔画像フォルダパス
+--fps, -f <number>                目標FPS (1-30)
+--disable-object-detection        物体検出を無効化
+--disable-face-recognition        顔認識を無効化
+--enable-object-detection         物体検出を有効化
+--enable-face-recognition         顔認識を有効化
+--help, -h                        ヘルプ表示
+```
+
+**使用例:**
+```bash
+# 基本的な使用
+dotnet run --project WPFDetectorApp/WPFDetectorApp.csproj -- \
+  --yolo-model models/yolo11n.onnx --fps 15
+
+# 短縮形での指定
+dotnet run --project WPFDetectorApp/WPFDetectorApp.csproj -- \
+  -y models/yolo.onnx -fd models/face_det.onnx -fr models/face_rec.onnx -fi faces
+
+# 機能を無効化
+dotnet run --project WPFDetectorApp/WPFDetectorApp.csproj -- \
+  --face-images reference_faces --disable-object-detection
+```
+
+### コマンドライン実行（旧版）
 ```bash
 dotnet run --project IRCameraUnifiedDetector.csproj -- \
   --face-detector models/yolov8n-face.onnx \
@@ -86,6 +129,14 @@ dotnet run [...] --disable-object-detection
    - `Load YOLO`: YOLOモデルファイルの読み込み
    - `Load Face Models`: 顔検出・認証モデルの読み込み
    - `Load Faces`: 参照顔画像フォルダの読み込み
+
+4. **パフォーマンス設定**:
+   - `FPS`: フレームレート選択 (1, 2, 5, 10, 15, 30 FPS)
+   - 実際のFPSと目標FPSを統計情報で確認可能
+
+5. **コマンドライン引数**:
+   - 起動時に`--help`でヘルプ表示
+   - 各種パス、FPS、機能有効/無効を引数で指定可能
 
 ### キーボードショートカット（コマンドライン版）
 - **1**: IRカメラに切り替え

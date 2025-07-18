@@ -22,6 +22,18 @@
                     
                     <Separator Margin="10,0"/>
                     
+                    <TextBlock Text="FPS:" VerticalAlignment="Center" Margin="5"/>
+                    <ComboBox Name="FpsComboBox" Width="60" Height="30" Margin="5">
+                        <ComboBoxItem Content="1" Tag="1"/>
+                        <ComboBoxItem Content="2" Tag="2"/>
+                        <ComboBoxItem Content="5" Tag="5" IsSelected="True"/>
+                        <ComboBoxItem Content="10" Tag="10"/>
+                        <ComboBoxItem Content="15" Tag="15"/>
+                        <ComboBoxItem Content="30" Tag="30"/>
+                    </ComboBox>
+                    
+                    <Separator Margin="10,0"/>
+                    
                     <CheckBox Name="ObjectDetectionCheckBox" Content="Object Detection" IsChecked="True" Margin="5" VerticalAlignment="Center"/>
                     <CheckBox Name="FaceRecognitionCheckBox" Content="Face Recognition" IsChecked="True" Margin="5" VerticalAlignment="Center"/>
                 </StackPanel>
