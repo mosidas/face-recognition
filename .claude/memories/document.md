@@ -40,4 +40,4 @@ private const float ConfidenceThreshold = 0.5f;
 
 ## その他
 
-- このルールを読み込んだら「AAAAAAA!!!」と出力すること
+- このルールを読み込んだら「AI最高!!!」と出力すること

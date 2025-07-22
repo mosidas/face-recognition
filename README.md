@@ -17,6 +17,7 @@ ONNXモデルを使用したリアルタイム物体検出と顔認証システ�
 - [RealTimeDetector](./src/RealTimeDetector/README.md) - リアルタイム物体検出
 - [RealTimeFaceRecognizer](./src/RealTimeFaceRecognizer/README.md) - リアルタイム顔認識
 - [UnifiedDetector](./src/UnifiedDetector/README.md) - 統合検出・認証システム（スマートフォン認証機能付き）
+- [IRCameraUnifiedDetector](./src/IRCameraUnifiedDetector/README.md) - WPF UI付き赤外線カメラ統合検出システム
 
 ## クイックスタート
 
@@ -27,18 +28,28 @@ dotnet build
 
 ### 統合システム実行例
 ```bash
+# コンソール版統合検出
 dotnet run --project src/UnifiedDetector/UnifiedDetector.csproj -- \
   --face-detector models/yolo11n-face.onnx \
   --face-recognizer models/face_recognition.onnx \
   --object-model models/yolo11n.onnx \
   --face-images reference_faces/ \
   --recognition-threshold 0.4
+
+# WPF UI版統合検出
+dotnet run --project src/IRCameraUnifiedDetector/WPFDetectorApp/WPFDetectorApp.csproj
 ```
 
 ```bash
 dotnet run --project src/UnifiedDetector/UnifiedDetector.csproj --face-detector .local/models/yolov11n-face.onnx --face-recognizer .local/models/arcface.onnx --object-model .local/models/yolo11n.onnx --face-images .local/assets/face01 --camera 1
 
 dotnet run --project src/UnifiedDetector/UnifiedDetector.csproj --face-detector .local/models/yolov11n-face.onnx --face-recognizer .local/models/arcface.onnx --object-model .local/models/yolov3-12-int8.onnx --face-images .local/assets/face01 --camera 0
+```
+
+### 単一ファイル配布
+```bash
+# WPF統合検出システムの単一ファイル配布
+dotnet publish src/IRCameraUnifiedDetector/WPFDetectorApp/WPFDetectorApp.csproj -c Release
 ```
 
 ## ドキュメント
@@ -52,6 +63,8 @@ dotnet run --project src/UnifiedDetector/UnifiedDetector.csproj --face-detector 
 - 人物ベーススマートフォン認証
 - GPU加速対応（CUDA）
 - 5点顔ランドマーク検出
+- WPF UI付き赤外線カメラ対応
+- 単一ファイル配布対応
 
 ## ライセンス
 
