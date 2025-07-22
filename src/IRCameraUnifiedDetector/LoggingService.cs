@@ -32,7 +32,7 @@ public class LoggingService : IDisposable
     public bool ConsoleOutput { get; set; } = true;
     public bool FileOutput { get; set; } = true;
 
-    public LoggingService(string logFileName = null)
+    public LoggingService(string? logFileName = null)
     {
         // ログファイルパスの設定
         var logsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
@@ -55,7 +55,7 @@ public class LoggingService : IDisposable
     /// <summary>
     /// ログを記録
     /// </summary>
-    public void Log(LogLevel level, string source, string message, Exception exception = null)
+    public void Log(LogLevel level, string source, string message, Exception? exception = null)
     {
         if (level < MinimumLogLevel) return;
 
@@ -90,7 +90,7 @@ public class LoggingService : IDisposable
     /// <summary>
     /// エラーログ
     /// </summary>
-    public void Error(string source, string message, Exception exception = null) => Log(LogLevel.Error, source, message, exception);
+    public void Error(string source, string message, Exception? exception = null) => Log(LogLevel.Error, source, message, exception);
 
     /// <summary>
     /// ログ書き込みスレッド

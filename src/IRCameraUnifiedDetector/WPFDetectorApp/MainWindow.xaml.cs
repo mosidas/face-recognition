@@ -19,6 +19,7 @@ namespace WPFDetectorApp
         private FaceDatabase? _faceDatabase;
 
         private int _frameCount = 0;
+        private int _totalReceivedFrames = 0; // 受信フレーム総数
         private bool _isCameraRunning = false;
         private bool _isDetectionRunning = false;
         private DateTime _startTime = DateTime.Now;
@@ -36,17 +37,17 @@ namespace WPFDetectorApp
         public MainWindow(CommandLineArgs? commandLineArgs)
         {
             InitializeComponent();
-            
+
             _commandLineArgs = commandLineArgs;
-            
-            // FPSコンボボックスのイベントハンドラーを設定
-            FpsComboBox.SelectionChanged += FpsComboBox_SelectionChanged;
-            
+
+            // FPSテキストボックスのイベントハンドラーを設定
+            FpsTextBox.TextChanged += FpsTextBox_TextChanged;
+
             _isInitialized = true;
-            
+
             // コマンドライン引数でUIを初期化
             ApplyCommandLineArgs();
-            
+
             InitializeServices();
         }
 
@@ -81,14 +82,7 @@ namespace WPFDetectorApp
                 if (_commandLineArgs.TargetFps.HasValue)
                 {
                     var fps = _commandLineArgs.TargetFps.Value;
-                    foreach (ComboBoxItem item in FpsComboBox.Items)
-                    {
-                        if (double.TryParse(item.Tag?.ToString(), out double itemFps) && Math.Abs(itemFps - fps) < 0.1)
-                        {
-                            FpsComboBox.SelectedItem = item;
-                            break;
-                        }
-                    }
+                    FpsTextBox.Text = fps.ToString("F1");
                 }
 
                 // 検出機能のオン/オフを設定
@@ -130,6 +124,9 @@ namespace WPFDetectorApp
                     UpdateCameraComboBox();
                     StatusText.Text = "Services initialized successfully";
                     _logger.Info("MainWindow", "Services initialized successfully");
+                    
+                    // UIボタンの初期状態を同期
+                    UpdateUIButtonStates();
                 }
                 else
                 {
@@ -160,8 +157,32 @@ namespace WPFDetectorApp
 
             if (defaultSource != null)
             {
+                // SelectionChangedイベントを一時的に無効化してからデフォルト選択
+                CameraComboBox.SelectionChanged -= CameraComboBox_SelectionChanged;
                 CameraComboBox.SelectedItem = defaultSource;
+                CameraComboBox.SelectionChanged += CameraComboBox_SelectionChanged;
             }
+        }
+
+        private void UpdateUIButtonStates()
+        {
+            if (_cameraService == null) return;
+
+            // カメラサービスの実際の状態に基づいてUIボタンを更新
+            var isCameraRunning = _isCameraRunning;
+            var isDetectionRunning = _isDetectionRunning;
+
+            _logger?.Debug("MainWindow", $"Updating UI button states - Camera: {isCameraRunning}, Detection: {isDetectionRunning}");
+
+            // カメラボタンの状態
+            StartCameraButton.IsEnabled = !isCameraRunning;
+            StopCameraButton.IsEnabled = isCameraRunning;
+
+            // 検出ボタンの状態（カメラが起動している場合のみ操作可能）
+            StartDetectionButton.IsEnabled = isCameraRunning && !isDetectionRunning;
+            StopDetectionButton.IsEnabled = isCameraRunning && isDetectionRunning;
+
+            _logger?.Info("MainWindow", $"UI button states updated - StartCamera: {StartCameraButton.IsEnabled}, StopCamera: {StopCameraButton.IsEnabled}, StartDetection: {StartDetectionButton.IsEnabled}, StopDetection: {StopDetectionButton.IsEnabled}");
         }
 
         private async void StartCameraButton_Click(object sender, RoutedEventArgs e)
@@ -173,18 +194,29 @@ namespace WPFDetectorApp
                 _isCameraRunning = true;
                 _startTime = DateTime.Now;
                 _frameCount = 0;
+                _totalReceivedFrames = 0; // 受信フレーム数もリセット
                 _isProcessingFrame = false;
                 _lastProcessedTime = DateTime.MinValue;
 
                 _logger?.Info("MainWindow", "Starting camera");
 
-                if (await _cameraService.StartAsync())
+                bool startResult;
+                
+                // ComboBoxで選択されているカメラがあればそれを使用、なければデフォルト動作
+                if (CameraComboBox.SelectedItem is AvailableCameraSource selectedSource)
+                {
+                    startResult = await _cameraService.EnableCameraSourceAsync(selectedSource.SourceId);
+                }
+                else
+                {
+                    startResult = await _cameraService.StartAsync();
+                }
+
+                if (startResult)
                 {
                     StatusText.Text = "Camera started";
-                    StartCameraButton.IsEnabled = false;
-                    StopCameraButton.IsEnabled = true;
-                    StartDetectionButton.IsEnabled = true;
                     NoVideoText.Visibility = Visibility.Collapsed;
+                    UpdateUIButtonStates(); // UIボタン状態を統一管理
 
                     _logger?.Info("MainWindow", "Camera started");
                 }
@@ -192,6 +224,7 @@ namespace WPFDetectorApp
                 {
                     _isCameraRunning = false;
                     StatusText.Text = "Failed to start camera";
+                    UpdateUIButtonStates(); // 失敗時も状態を更新
                     _logger?.Error("MainWindow", "Failed to start camera");
                 }
             }
@@ -199,6 +232,7 @@ namespace WPFDetectorApp
             {
                 _isCameraRunning = false;
                 StatusText.Text = $"Error: {ex.Message}";
+                UpdateUIButtonStates(); // エラー時も状態を更新
                 _logger?.Error("MainWindow", $"Camera start error: {ex.Message}", ex);
             }
         }
@@ -214,12 +248,9 @@ namespace WPFDetectorApp
                 _isDetectionRunning = false;
 
                 StatusText.Text = "Camera stopped";
-                StartCameraButton.IsEnabled = true;
-                StopCameraButton.IsEnabled = false;
-                StartDetectionButton.IsEnabled = false;
-                StopDetectionButton.IsEnabled = false;
                 CameraImage.Source = null;
                 NoVideoText.Visibility = Visibility.Visible;
+                UpdateUIButtonStates(); // UIボタン状態を統一管理
 
                 _logger?.Info("MainWindow", "Camera stopped");
             }
@@ -242,8 +273,7 @@ namespace WPFDetectorApp
             {
                 _isDetectionRunning = true;
                 StatusText.Text = "Detection started";
-                StartDetectionButton.IsEnabled = false;
-                StopDetectionButton.IsEnabled = true;
+                UpdateUIButtonStates(); // UIボタン状態を統一管理
 
                 _logger?.Info("MainWindow", "Detection started");
             }
@@ -260,8 +290,7 @@ namespace WPFDetectorApp
             {
                 _isDetectionRunning = false;
                 StatusText.Text = "Detection stopped";
-                StartDetectionButton.IsEnabled = true;
-                StopDetectionButton.IsEnabled = false;
+                UpdateUIButtonStates(); // UIボタン状態を統一管理
 
                 _logger?.Info("MainWindow", "Detection stopped");
             }
@@ -274,20 +303,31 @@ namespace WPFDetectorApp
 
         private async void CameraComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            // 初期化中の場合は何もしない（カメラが起動していない場合はカメラ選択のみ更新）
             if (_cameraService == null || CameraComboBox.SelectedItem == null) return;
 
             var selectedSource = (AvailableCameraSource)CameraComboBox.SelectedItem;
 
-            try
+            // カメラが起動している場合のみ実際に切り替える
+            if (_isCameraRunning)
             {
-                await _cameraService.SwitchCameraSourceAsync(selectedSource.SourceId);
-                StatusText.Text = $"Switched to: {selectedSource.Description}";
-                _logger?.Info("MainWindow", $"Switched to camera: {selectedSource.Description}");
+                try
+                {
+                    await _cameraService.SwitchCameraSourceAsync(selectedSource.SourceId);
+                    StatusText.Text = $"Switched to: {selectedSource.Description}";
+                    _logger?.Info("MainWindow", $"Switched to camera: {selectedSource.Description}");
+                }
+                catch (Exception ex)
+                {
+                    StatusText.Text = $"Error switching camera: {ex.Message}";
+                    _logger?.Error("MainWindow", $"Switch error: {ex.Message}", ex);
+                }
             }
-            catch (Exception ex)
+            else
             {
-                StatusText.Text = $"Error switching camera: {ex.Message}";
-                _logger?.Error("MainWindow", $"Switch error: {ex.Message}", ex);
+                // カメラが起動していない場合は選択のみ記録
+                StatusText.Text = $"Camera selected: {selectedSource.Description}";
+                _logger?.Info("MainWindow", $"Camera selected (not running): {selectedSource.Description}");
             }
         }
 
@@ -471,21 +511,40 @@ namespace WPFDetectorApp
             }
         }
 
-        private void FpsComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void FpsTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             // 初期化が完了していない場合は何もしない
             if (!_isInitialized || _logger == null || StatusText == null) return;
-            
+
             try
             {
-                if (FpsComboBox?.SelectedItem is ComboBoxItem selectedItem)
+                if (FpsTextBox != null && !string.IsNullOrWhiteSpace(FpsTextBox.Text))
                 {
-                    if (double.TryParse(selectedItem.Tag?.ToString(), out double fps))
+                    if (double.TryParse(FpsTextBox.Text, out double fps))
                     {
-                        _targetFps = fps;
-                        _frameInterval = TimeSpan.FromMilliseconds(1000.0 / fps);
-                        StatusText.Text = $"FPS changed to: {fps}";
-                        _logger.Info("MainWindow", $"Frame rate changed to {fps} FPS");
+                        // FPS値の範囲チェック（0.1～120の範囲で制限）
+                        if (fps >= 0.1 && fps <= 120.0)
+                        {
+                            _targetFps = fps;
+                            _frameInterval = TimeSpan.FromMilliseconds(1000.0 / fps);
+                            StatusText.Text = $"FPS changed to: {fps:F1}";
+                            _logger.Info("MainWindow", $"Frame rate changed to {fps:F1} FPS");
+
+                            // テキストボックスの背景色を正常に戻す
+                            FpsTextBox.Background = System.Windows.Media.Brushes.White;
+                        }
+                        else
+                        {
+                            // 範囲外の値の場合、背景色を変更して警告
+                            FpsTextBox.Background = System.Windows.Media.Brushes.LightPink;
+                            StatusText.Text = $"FPS value must be between 0.1 and 120.0";
+                        }
+                    }
+                    else
+                    {
+                        // 無効な数値の場合、背景色を変更して警告
+                        FpsTextBox.Background = System.Windows.Media.Brushes.LightPink;
+                        StatusText.Text = "Invalid FPS value. Please enter a valid number.";
                     }
                 }
             }
@@ -504,15 +563,9 @@ namespace WPFDetectorApp
                 return;
             }
 
-            _logger?.Debug("MainWindow", $"Frame arrived: camera={_isCameraRunning}, detection={_isDetectionRunning}");
-
-            // フレームレート制限チェック
-            var now = DateTime.Now;
-            if (now - _lastProcessedTime < _frameInterval)
-            {
-                _logger?.Debug("MainWindow", "Frame skipped due to rate limit");
-                return; // フレームをスキップ
-            }
+            // 受信フレーム数をカウント
+            _totalReceivedFrames++;
+            _logger?.Debug("MainWindow", $"Frame arrived #{_totalReceivedFrames}: camera={_isCameraRunning}, detection={_isDetectionRunning}");
 
             // 前のフレームがまだ処理中の場合はスキップ
             if (_isProcessingFrame)
@@ -521,9 +574,24 @@ namespace WPFDetectorApp
                 return;
             }
 
+            // フレーム番号ベースの制限（30FPS想定でターゲットFPSに合わせてスキップ）
+            var frameSkipInterval = Math.Max(1, (int)Math.Round(30.0 / _targetFps));
+            if (_totalReceivedFrames % frameSkipInterval != 0)
+            {
+                _logger?.Debug("MainWindow", $"Frame skipped due to frame-based rate limit (skip interval: {frameSkipInterval})");
+                return;
+            }
+
+            // 時間ベースの制限チェック
+            var now = DateTime.Now;
+            if (now - _lastProcessedTime < _frameInterval)
+            {
+                _logger?.Debug("MainWindow", "Frame skipped due to time-based rate limit");
+                return;
+            }
+
             _isProcessingFrame = true;
-            _lastProcessedTime = now;
-            _logger?.Debug("MainWindow", $"Processing frame #{_frameCount + 1}");
+            _logger?.Debug("MainWindow", $"Processing frame #{_frameCount + 1} (received #{_totalReceivedFrames})");
 
             // UIスレッドで処理（非同期）
             _ = Dispatcher.BeginInvoke(async () =>
@@ -532,20 +600,20 @@ namespace WPFDetectorApp
                 {
                     _frameCount++;
                     _logger?.Debug("MainWindow", $"Frame #{_frameCount}: Starting processing");
-                    
+
                     using var frame = frameData.Frame.Clone();
                     _logger?.Debug("MainWindow", $"Frame #{_frameCount}: Frame cloned {frame.Width}x{frame.Height}");
-                    
+
                     // 検出処理は_isDetectionRunningがtrueの場合のみ実行
                     if (_isDetectionRunning)
                     {
                         // 統合検出処理
                         var results = await ProcessFrameUnified(frame);
                         _logger?.Debug("MainWindow", $"Frame #{_frameCount}: Detection completed, Objects: {results.ObjectDetections.Count}, Faces: {results.FaceRecognitions.Count}");
-                        
+
                         // 結果を描画
                         DrawResults(frame, results, frameData.SourceType);
-                        
+
                         // 統計情報を更新
                         UpdateStatistics(results, frameData.SourceType);
                     }
@@ -555,16 +623,16 @@ namespace WPFDetectorApp
                         // 検出なしの場合は基本的な統計情報のみ更新
                         UpdateBasicStatistics(frameData.SourceType);
                     }
-                    
+
                     // カメラ情報を描画
                     DrawCameraInfo(frame, frameData);
                     _logger?.Debug("MainWindow", $"Frame #{_frameCount}: Drawing completed");
-                    
+
                     // WPFで表示（常に表示）
                     var bitmapSource = MatToBitmapSource(frame);
                     CameraImage.Source = bitmapSource;
                     _logger?.Debug("MainWindow", $"Frame #{_frameCount}: Display updated");
-                    
+
                     // No video textを隠す
                     if (NoVideoText.Visibility == Visibility.Visible)
                     {
@@ -579,6 +647,8 @@ namespace WPFDetectorApp
                 finally
                 {
                     _isProcessingFrame = false;
+                    _lastProcessedTime = DateTime.Now; // 処理完了時に更新
+                    _logger?.Debug("MainWindow", $"Frame processing completed at {_lastProcessedTime:HH:mm:ss.fff}");
                 }
             });
         }
@@ -684,9 +754,11 @@ namespace WPFDetectorApp
         private void UpdateStatistics(UnifiedResults results, CameraSourceType sourceType)
         {
             var elapsed = DateTime.Now - _startTime;
-            var fps = _frameCount / elapsed.TotalSeconds;
+            var processingFps = _frameCount / elapsed.TotalSeconds;
+            var receivingFps = _totalReceivedFrames / elapsed.TotalSeconds;
+            var skipRate = _totalReceivedFrames > 0 ? (double)(_totalReceivedFrames - _frameCount) / _totalReceivedFrames * 100 : 0;
 
-            FrameInfoText.Text = $"Frames: {_frameCount} | FPS: {fps:F1} | Target: {_targetFps:F0} | Camera: {sourceType}";
+            FrameInfoText.Text = $"Processed: {_frameCount} | Received: {_totalReceivedFrames} | Processing FPS: {processingFps:F1} | Target: {_targetFps:F1} | Skip: {skipRate:F1}% | Camera: {sourceType}";
             DetectionInfoText.Text = $"Objects: {results.ObjectDetections.Count} | Faces: {results.FaceRecognitions.Count}";
 
             var knownFaces = results.FaceRecognitions.Count(f => f.Name != "Unknown");
@@ -699,9 +771,11 @@ namespace WPFDetectorApp
         private void UpdateBasicStatistics(CameraSourceType sourceType)
         {
             var elapsed = DateTime.Now - _startTime;
-            var fps = _frameCount / elapsed.TotalSeconds;
+            var processingFps = _frameCount / elapsed.TotalSeconds;
+            var receivingFps = _totalReceivedFrames / elapsed.TotalSeconds;
+            var skipRate = _totalReceivedFrames > 0 ? (double)(_totalReceivedFrames - _frameCount) / _totalReceivedFrames * 100 : 0;
 
-            FrameInfoText.Text = $"Frames: {_frameCount} | FPS: {fps:F1} | Target: {_targetFps:F0} | Camera: {sourceType}";
+            FrameInfoText.Text = $"Processed: {_frameCount} | Received: {_totalReceivedFrames} | Processing FPS: {processingFps:F1} | Target: {_targetFps:F1} | Skip: {skipRate:F1}% | Camera: {sourceType}";
             DetectionInfoText.Text = "Detection: Off";
         }
 

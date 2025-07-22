@@ -464,7 +464,7 @@ public class CameraService : IDisposable
 
         // MatTypeをBGRAに設定
         var mat = new Mat(height, width, MatType.CV_8UC4);
-        
+
         // バイト配列をMatにコピー
         var matData = mat.Data;
         System.Runtime.InteropServices.Marshal.Copy(buffer, 0, matData, buffer.Length);

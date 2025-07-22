@@ -12,7 +12,7 @@ var faceDetectorOption = new Option<string>(
 ) { IsRequired = true };
 
 var faceRecognizerOption = new Option<string>(
-    "--face-recognizer", 
+    "--face-recognizer",
     "顔認識モデル（ONNX）のパス"
 ) { IsRequired = true };
 
@@ -126,7 +126,7 @@ rootCommand.SetHandler(async (
         logger.Info("Program", "=====================================");
         logger.Info("Program", "IRカメラ対応統合検出・認証システム起動");
         logger.Info("Program", "=====================================");
-        
+
         // 統合検出器の初期化
         using var irDetector = new IRUnifiedDetectorMain(
             objectDetector,
