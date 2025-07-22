@@ -109,7 +109,7 @@ namespace WPFDetectorApp
             try
             {
                 _logger = new LoggingService();
-                _cameraService = new CameraService();
+                _cameraService = new CameraService(_logger);
                 _faceDatabase = new FaceDatabase();
 
                 _cameraService.FrameArrived += OnFrameArrived;
@@ -124,7 +124,7 @@ namespace WPFDetectorApp
                     UpdateCameraComboBox();
                     StatusText.Text = "Services initialized successfully";
                     _logger.Info("MainWindow", "Services initialized successfully");
-                    
+
                     // UIボタンの初期状態を同期
                     UpdateUIButtonStates();
                 }
@@ -201,7 +201,7 @@ namespace WPFDetectorApp
                 _logger?.Info("MainWindow", "Starting camera");
 
                 bool startResult;
-                
+
                 // ComboBoxで選択されているカメラがあればそれを使用、なければデフォルト動作
                 if (CameraComboBox.SelectedItem is AvailableCameraSource selectedSource)
                 {
@@ -565,7 +565,7 @@ namespace WPFDetectorApp
 
             // 受信フレーム数をカウント
             _totalReceivedFrames++;
-            _logger?.Debug("MainWindow", $"Frame arrived #{_totalReceivedFrames}: camera={_isCameraRunning}, detection={_isDetectionRunning}");
+            _logger?.Debug("MainWindow", $"Frame arrived #{_totalReceivedFrames}: camera={_isCameraRunning}, detection={_isDetectionRunning}, processing={_isProcessingFrame}, lastProcessed={_lastProcessedTime:HH:mm:ss.fff}");
 
             // 前のフレームがまだ処理中の場合はスキップ
             if (_isProcessingFrame)
@@ -574,19 +574,13 @@ namespace WPFDetectorApp
                 return;
             }
 
-            // フレーム番号ベースの制限（30FPS想定でターゲットFPSに合わせてスキップ）
-            var frameSkipInterval = Math.Max(1, (int)Math.Round(30.0 / _targetFps));
-            if (_totalReceivedFrames % frameSkipInterval != 0)
-            {
-                _logger?.Debug("MainWindow", $"Frame skipped due to frame-based rate limit (skip interval: {frameSkipInterval})");
-                return;
-            }
-
             // 時間ベースの制限チェック
             var now = DateTime.Now;
-            if (now - _lastProcessedTime < _frameInterval)
+            var timeSinceLastProcess = now - _lastProcessedTime;
+
+            if (timeSinceLastProcess < _frameInterval)
             {
-                _logger?.Debug("MainWindow", "Frame skipped due to time-based rate limit");
+                _logger?.Debug("MainWindow", $"Frame skipped - interval not met: {timeSinceLastProcess.TotalMilliseconds:F1}ms < {_frameInterval.TotalMilliseconds:F1}ms");
                 return;
             }
 

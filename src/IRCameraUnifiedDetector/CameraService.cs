@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Runtime.InteropServices.WindowsRuntime;
 using Windows.Graphics.Imaging;
 using Windows.Media.Capture;
@@ -66,6 +65,7 @@ public class CameraService : IDisposable
     private readonly Dictionary<string, MediaFrameReader> _frameReaders = new();
     private readonly Dictionary<string, DateTime> _lastFrameTime = new();
     private readonly System.Timers.Timer _healthCheckTimer;
+    private readonly LoggingService? _logger;
     private bool _isInitialized = false;
     private bool _disposed = false;
 
@@ -80,12 +80,16 @@ public class CameraService : IDisposable
     public event EventHandler<DepthFrameData>? DepthFrameArrived;
     public event EventHandler<string>? StatusChanged;
 
-    public CameraService()
+    public CameraService(LoggingService? logger = null)
     {
+        _logger = logger;
+        
         // カメラの健全性チェック用タイマー（5秒間隔）
         _healthCheckTimer = new System.Timers.Timer(5000);
         _healthCheckTimer.Elapsed += OnHealthCheck;
         _healthCheckTimer.AutoReset = true;
+        
+        _logger?.Debug("CameraService", "CameraService initialized");
     }
 
     /// <summary>
@@ -384,10 +388,16 @@ public class CameraService : IDisposable
         // アクティブなソースかどうかをチェック
         if (!ActiveSources.Contains(source.SourceId)) return;
 
+        _logger?.Debug("CameraService", $"Frame arrived from {source.Description} at {DateTime.Now:HH:mm:ss.fff}");
+
         try
         {
             using var latestFrameReference = sender.TryAcquireLatestFrame();
-            if (latestFrameReference?.VideoMediaFrame?.SoftwareBitmap == null) return;
+            if (latestFrameReference?.VideoMediaFrame?.SoftwareBitmap == null) 
+            {
+                _logger?.Warning("CameraService", $"Failed to acquire frame from {source.Description}");
+                return;
+            }
 
             var softwareBitmap = latestFrameReference.VideoMediaFrame.SoftwareBitmap;
 
@@ -400,6 +410,7 @@ public class CameraService : IDisposable
 
             // フレーム受信時刻を記録
             _lastFrameTime[source.SourceId] = DateTime.Now;
+            _logger?.Debug("CameraService", $"Frame time updated for {source.SourceId} at {DateTime.Now:HH:mm:ss.fff}");
 
             // SoftwareBitmapをOpenCVのMatに変換
             var mat = ConvertSoftwareBitmapToMat(softwareBitmap);
@@ -488,11 +499,17 @@ public class CameraService : IDisposable
 
         foreach (var sourceId in ActiveSources.ToList())
         {
-            // 最後のフレーム受信から10秒以上経過している場合は停止と判断
-            if (_lastFrameTime.TryGetValue(sourceId, out var lastTime) &&
-                (now - lastTime).TotalSeconds > 10)
+            // 最後のフレーム受信から60秒以上経過している場合は停止と判断（低FPS対応）
+            if (_lastFrameTime.TryGetValue(sourceId, out var lastTime))
             {
-                stoppedSources.Add(sourceId);
+                var elapsed = (now - lastTime).TotalSeconds;
+                _logger?.Debug("CameraService", $"Health check for {sourceId}: {elapsed:F1}s since last frame");
+                
+                if (elapsed > 10)
+                {
+                    stoppedSources.Add(sourceId);
+                    _logger?.Warning("CameraService", $"Camera source {sourceId} stopped (no frame for {elapsed:F1}s)");
+                }
             }
         }
 
@@ -517,7 +534,7 @@ public class CameraService : IDisposable
     /// </summary>
     private void OnStatusChanged(string message)
     {
-        Debug.WriteLine(message);
+        _logger?.Info("CameraService", message);
         StatusChanged?.Invoke(this, message);
     }
 
