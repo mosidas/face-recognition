@@ -38,7 +38,7 @@ dotnet run --project src/UnifiedDetector/UnifiedDetector.csproj -- \
 ```bash
 dotnet run --project src/UnifiedDetector/UnifiedDetector.csproj --face-detector .local/models/yolov11n-face.onnx --face-recognizer .local/models/arcface.onnx --object-model .local/models/yolo11n.onnx --face-images .local/assets/face01 --camera 1
 
-dotnet run --project src/UnifiedDetector/UnifiedDetector.csproj --face-detector .local/models/yolov11n-face.onnx --face-recognizer .local/models/arcface.onnx --object-model .local/models/yolov3-12-int8.onnx --face-images .local/assets/face01 --camera 1
+dotnet run --project src/UnifiedDetector/UnifiedDetector.csproj --face-detector .local/models/yolov11n-face.onnx --face-recognizer .local/models/arcface.onnx --object-model .local/models/yolov3-12-int8.onnx --face-images .local/assets/face01 --camera 0
 ```
 
 ## ドキュメント

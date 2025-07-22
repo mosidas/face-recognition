@@ -89,6 +89,10 @@ dotnet run --project IRCameraUnifiedDetector.csproj -- \
   --face-images reference_faces/
 ```
 
+```sh
+dotnet run --project src/IRCameraUnifiedDetector/WPFDetectorApp/WPFDetectorApp.csproj -y .\.local\models\yolo11n.onnx -fd .\.local\models\yolov8n-face.onnx -fr .\.local\models\arcface.onnx -fi .\.local\assets\face01 --fps 15
+```
+
 ### 高度な設定
 ```bash
 dotnet run --project IRCameraUnifiedDetector.csproj -- \
