@@ -17,7 +17,7 @@ ONNXモデルを使用したリアルタイム物体検出と顔認証システ�
 - [RealTimeDetector](./src/RealTimeDetector/README.md) - リアルタイム物体検出
 - [RealTimeFaceRecognizer](./src/RealTimeFaceRecognizer/README.md) - リアルタイム顔認識
 - [UnifiedDetector](./src/UnifiedDetector/README.md) - 統合検出・認証システム（スマートフォン認証機能付き）
-- [IRCameraUnifiedDetector](./src/IRCameraUnifiedDetector/README.md) - WPF UI付き赤外線カメラ統合検出システム
+- [WPFDetectorApp](./src/WPFDetectorApp/README.md) - WPF UI付き赤外線カメラ統合検出システム
 
 ## クイックスタート
 
@@ -37,7 +37,7 @@ dotnet run --project src/UnifiedDetector/UnifiedDetector.csproj -- \
   --recognition-threshold 0.4
 
 # WPF UI版統合検出
-dotnet run --project src/IRCameraUnifiedDetector/WPFDetectorApp/WPFDetectorApp.csproj
+dotnet run --project src/WPFDetectorApp/WPFDetectorApp.csproj
 ```
 
 ```bash
@@ -49,7 +49,7 @@ dotnet run --project src/UnifiedDetector/UnifiedDetector.csproj --face-detector 
 ### 単一ファイル配布
 ```bash
 # WPF統合検出システムの単一ファイル配布
-dotnet publish src/IRCameraUnifiedDetector/WPFDetectorApp/WPFDetectorApp.csproj -c Release
+dotnet publish src/WPFDetectorApp/WPFDetectorApp.csproj -c Release
 ```
 
 ## ドキュメント
