@@ -1,6 +1,6 @@
-# IRCameraUnifiedDetector
+# WPFDetectorApp
 
-IRカメラ対応統合検出・認証システム
+WPFベースのIRカメラ対応統合検出・認証システム
 
 ## 概要
 
@@ -27,13 +27,13 @@ Windows.Media.Captureを使用したIRカメラ対応のリアルタイム顔認
 ### WPFアプリケーション（推奨）
 ```bash
 # WPFアプリケーションの実行
-dotnet run --project WPFDetectorApp/WPFDetectorApp.csproj
+dotnet run --project src/WPFDetectorApp/WPFDetectorApp.csproj
 
 # コマンドライン引数付きで実行
-dotnet run --project WPFDetectorApp/WPFDetectorApp.csproj -- \
+dotnet run --project src/WPFDetectorApp/WPFDetectorApp.csproj -- \
   --yolo-model models/yolo11n.onnx \
-  --face-detector models/face_detection_yunet_2023mar.onnx \
-  --face-recognizer models/face_recognition_sface_2021dec.onnx \
+  --face-detector models/yolov8n-face.onnx \
+  --face-recognizer models/arcface.onnx \
   --face-images reference_faces \
   --fps 10
 ```
@@ -50,7 +50,7 @@ dotnet run --project WPFDetectorApp/WPFDetectorApp.csproj -- \
 
 ```bash
 # ヘルプ表示
-dotnet run --project WPFDetectorApp/WPFDetectorApp.csproj -- --help
+dotnet run --project src/WPFDetectorApp/WPFDetectorApp.csproj -- --help
 
 # 引数一覧
 --yolo-model, -y <path>           YOLOモデルファイルパス (.onnx)
@@ -68,40 +68,38 @@ dotnet run --project WPFDetectorApp/WPFDetectorApp.csproj -- --help
 **使用例:**
 ```bash
 # 基本的な使用
-dotnet run --project WPFDetectorApp/WPFDetectorApp.csproj -- \
+dotnet run --project src/WPFDetectorApp/WPFDetectorApp.csproj -- \
   --yolo-model models/yolo11n.onnx --fps 15
 
 # 短縮形での指定
-dotnet run --project WPFDetectorApp/WPFDetectorApp.csproj -- \
+dotnet run --project src/WPFDetectorApp/WPFDetectorApp.csproj -- \
   -y models/yolo.onnx -fd models/face_det.onnx -fr models/face_rec.onnx -fi faces
 
 # 機能を無効化
-dotnet run --project WPFDetectorApp/WPFDetectorApp.csproj -- \
+dotnet run --project src/WPFDetectorApp/WPFDetectorApp.csproj -- \
   --face-images reference_faces --disable-object-detection
 ```
 
-### コマンドライン実行（旧版）
-```bash
-dotnet run --project IRCameraUnifiedDetector.csproj -- \
-  --face-detector models/yolov8n-face.onnx \
-  --face-recognizer models/arcface.onnx \
-  --object-model models/yolo11n.onnx \
-  --face-images reference_faces/
-```
+### 実際の使用例
 
 ```sh
-dotnet run --project src/IRCameraUnifiedDetector/WPFDetectorApp/WPFDetectorApp.csproj -y .\.local\models\yolo11n.onnx -fd .\.local\models\yolov8n-face.onnx -fr .\.local\models\arcface.onnx -fi .\.local\assets\face01 --fps 15
+# Windows PowerShellでの実行例
+dotnet run --project src/WPFDetectorApp/WPFDetectorApp.csproj -- \
+  -y .\.local\models\yolo11n.onnx \
+  -fd .\.local\models\yolov8n-face.onnx \
+  -fr .\.local\models\arcface.onnx \
+  -fi .\.local\assets\face01 \
+  --fps 15
 ```
 
 ### 高度な設定
 ```bash
-dotnet run --project IRCameraUnifiedDetector.csproj -- \
+dotnet run --project src/WPFDetectorApp/WPFDetectorApp.csproj -- \
   --face-detector models/yolov11n-face.onnx \
   --face-recognizer models/arcface.onnx \
-  --object-model models/yolo11n.onnx \
+  --yolo-model models/yolo11n.onnx \
   --face-images reference_faces/ \
-  --recognition-threshold 0.6 \
-  --window-name "IR顔認証システム"
+  --fps 10
 ```
 
 ### 機能別実行
