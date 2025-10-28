@@ -8,7 +8,7 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        
+
         <!-- Control Panel -->
         <Border Grid.Row="0" Background="LightGray" Padding="10">
             <StackPanel>
@@ -19,30 +19,30 @@
                     <Button Name="StartDetectionButton" Content="Start Detection" Width="120" Height="30" Margin="5" Click="StartDetectionButton_Click" IsEnabled="False"/>
                     <Button Name="StopDetectionButton" Content="Stop Detection" Width="120" Height="30" Margin="5" Click="StopDetectionButton_Click" IsEnabled="False"/>
                     <ComboBox Name="CameraComboBox" Width="200" Height="30" Margin="5" SelectionChanged="CameraComboBox_SelectionChanged"/>
-                    
+
                     <Separator Margin="10,0"/>
-                    
+
                     <TextBlock Text="FPS:" VerticalAlignment="Center" Margin="5"/>
                     <TextBox Name="FpsTextBox" Width="60" Height="30" Margin="5" Text="5" VerticalContentAlignment="Center" TextAlignment="Center" TextChanged="FpsTextBox_TextChanged"/>
-                    
+
                     <Separator Margin="10,0"/>
-                    
+
                     <CheckBox Name="ObjectDetectionCheckBox" Content="Object Detection" IsChecked="True" Margin="5" VerticalAlignment="Center"/>
                     <CheckBox Name="FaceRecognitionCheckBox" Content="Face Recognition" IsChecked="True" Margin="5" VerticalAlignment="Center"/>
                 </StackPanel>
-                
+
                 <!-- Row 2: Model Loading -->
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
                     <TextBlock Text="YOLO Model:" VerticalAlignment="Center" Margin="5"/>
                     <TextBox Name="YoloModelPathTextBox" Width="250" Height="30" Margin="5" Text="models/yolov8n.onnx" VerticalContentAlignment="Center"/>
                     <Button Name="LoadYoloButton" Content="Load YOLO" Width="80" Height="30" Margin="5" Click="LoadYoloButton_Click"/>
-                    
+
                     <Separator Margin="10,0"/>
-                    
+
                     <Button Name="LoadFacesButton" Content="Load Faces" Width="100" Height="30" Margin="5" Click="LoadFacesButton_Click"/>
                     <TextBox Name="FacePathTextBox" Width="150" Height="30" Margin="5" Text="face-images" VerticalContentAlignment="Center"/>
                 </StackPanel>
-                
+
                 <!-- Row 3: Face Models -->
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
                     <TextBlock Text="Face Detection:" VerticalAlignment="Center" Margin="5"/>
@@ -53,16 +53,15 @@
                 </StackPanel>
             </StackPanel>
         </Border>
-        
+
         <!-- Camera Display -->
         <Border Grid.Row="1" BorderBrush="Black" BorderThickness="1" Margin="10">
             <Grid>
                 <Image Name="CameraImage" Stretch="Uniform"/>
-                <TextBlock Name="NoVideoText" Text="No video feed" FontSize="24" Foreground="Gray" 
-                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <TextBlock Name="NoVideoText" Text="No video feed" FontSize="24" Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Grid>
         </Border>
-        
+
         <!-- Status Panel -->
         <Border Grid.Row="2" Background="LightGray" Padding="10">
             <Grid>
@@ -70,13 +69,13 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                
+
                 <StackPanel Grid.Column="0">
                     <TextBlock Name="StatusText" Text="Ready" FontSize="14" Margin="2"/>
                     <TextBlock Name="FrameInfoText" Text="Frames: 0" FontSize="12" Margin="2"/>
                     <TextBlock Name="DetectionInfoText" Text="Objects: 0 | Faces: 0" FontSize="12" Margin="2"/>
                 </StackPanel>
-                
+
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
                     <TextBlock Text="Camera Controls:" FontSize="12" Margin="5" VerticalAlignment="Center"/>
                     <Button Name="IRCameraButton" Content="IR (1)" Width="60" Height="25" Margin="2" Click="IRCameraButton_Click"/>
