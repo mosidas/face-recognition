@@ -1,7 +1,7 @@
-using OpenCvSharp;
-using Recognizer;
 using System.Diagnostics;
 using System.Drawing;
+using OpenCvSharp;
+using Recognizer;
 
 namespace RealTimeFaceRecognizer;
 
@@ -9,7 +9,7 @@ public class RealTimeFaceRecognizerMain
 {
   private readonly FaceRecognizer _faceRecognizer;
   private readonly string _faceImagesPath;
-  private readonly List<ReferenceEmbedding> _referenceEmbeddings = new();
+  private readonly List<ReferenceEmbedding> _referenceEmbeddings = [];
   private const string WindowName = "Real-time Face Recognition";
 
   public RealTimeFaceRecognizerMain(FaceRecognizer faceRecognizer, string faceImagesPath)
