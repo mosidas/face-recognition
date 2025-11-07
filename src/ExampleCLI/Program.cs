@@ -1,5 +1,4 @@
 using Recognizer;
-using static Recognizer.Constants;
 
 internal sealed class Program
 {

@@ -1,5 +1,3 @@
-using System;
-
 namespace WPFDetectorApp;
 
 public class CommandLineArgs
