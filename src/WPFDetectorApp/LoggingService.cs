@@ -4,7 +4,7 @@ using System.IO;
 using System.Text;
 using System.Threading;
 
-namespace IRCameraUnifiedDetector;
+namespace WPFDetectorApp;
 
 /// <summary>
 /// ログレベル
@@ -36,7 +36,7 @@ public class LoggingService : IDisposable
   {
     // ログファイルパスの設定
     var logsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
-    Directory.CreateDirectory(logsDir);
+    _ = Directory.CreateDirectory(logsDir);
 
     logFileName ??= $"IRCameraUnifiedDetector_{DateTime.Now:yyyyMMdd_HHmmss}.log";
     _logFilePath = Path.Combine(logsDir, logFileName);
@@ -57,9 +57,12 @@ public class LoggingService : IDisposable
   /// </summary>
   public void Log(LogLevel level, string source, string message, Exception? exception = null)
   {
-    if (level < MinimumLogLevel) return;
+    if (level < MinimumLogLevel)
+    {
+      return;
+    }
 
-    var entry = new LogEntry
+    LogEntry entry = new()
     {
       Timestamp = DateTime.Now,
       Level = level,
@@ -97,14 +100,14 @@ public class LoggingService : IDisposable
   /// </summary>
   private void LogWriterThreadProc()
   {
-    var sb = new StringBuilder();
+    StringBuilder sb = new();
 
     while (!_cancellationTokenSource.Token.IsCancellationRequested)
     {
       try
       {
         // ログエントリを一括処理
-        var entries = new List<LogEntry>();
+        List<LogEntry> entries = [];
         while (_logQueue.TryDequeue(out var entry) && entries.Count < 100)
         {
           entries.Add(entry);
@@ -112,7 +115,7 @@ public class LoggingService : IDisposable
 
         if (entries.Count > 0)
         {
-          sb.Clear();
+          _ = sb.Clear();
 
           foreach (var entry in entries)
           {
@@ -130,10 +133,10 @@ public class LoggingService : IDisposable
             // ファイル出力用
             if (FileOutput)
             {
-              sb.AppendLine(logLine);
+              _ = sb.AppendLine(logLine);
               if (entry.Exception != null)
               {
-                sb.AppendLine($"  Exception: {entry.Exception}");
+                _ = sb.AppendLine($"  Exception: {entry.Exception}");
               }
             }
           }
@@ -192,12 +195,15 @@ public class LoggingService : IDisposable
   /// </summary>
   public void Dispose()
   {
-    if (_disposed) return;
+    if (_disposed)
+    {
+      return;
+    }
 
     _cancellationTokenSource.Cancel();
 
     // 残りのログを処理
-    _logWriterThread.Join(5000);
+    _ = _logWriterThread.Join(5000);
 
     _cancellationTokenSource.Dispose();
     _disposed = true;

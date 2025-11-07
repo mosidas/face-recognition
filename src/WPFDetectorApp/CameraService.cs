@@ -5,7 +5,7 @@ using Windows.Media.Capture;
 using Windows.Media.Capture.Frames;
 using Mat = OpenCvSharp.Mat;
 
-namespace IRCameraUnifiedDetector;
+namespace WPFDetectorApp;
 
 /// <summary>
 /// カメラソースの種類
@@ -201,7 +201,7 @@ public class CameraService : IDisposable
                     if (_mediaCaptures.ContainsKey(source.GroupId))
                     {
                       _mediaCaptures[source.GroupId]?.Dispose();
-                      _mediaCaptures.Remove(source.GroupId);
+                      _ = _mediaCaptures.Remove(source.GroupId);
                     }
                   });
         };
@@ -251,10 +251,10 @@ public class CameraService : IDisposable
       // イベントハンドラを登録
       frameReader.FrameArrived += (sender, args) => OnFrameArrived(sender, args, source);
 
-      await frameReader.StartAsync();
+      _ = await frameReader.StartAsync();
 
       _frameReaders[sourceId] = frameReader;
-      ActiveSources.Add(sourceId);
+      _ = ActiveSources.Add(sourceId);
 
       // フレーム受信時刻を初期化
       _lastFrameTime[sourceId] = DateTime.Now;
@@ -289,10 +289,10 @@ public class CameraService : IDisposable
     try
     {
       // まずActiveSourcesから削除してイベント処理を無効化
-      ActiveSources.Remove(sourceId);
+      _ = ActiveSources.Remove(sourceId);
 
       // フレーム時刻記録も削除
-      _lastFrameTime.Remove(sourceId);
+      _ = _lastFrameTime.Remove(sourceId);
 
       if (_frameReaders.TryGetValue(sourceId, out var frameReader))
       {
@@ -303,7 +303,7 @@ public class CameraService : IDisposable
         await Task.Delay(50);
 
         frameReader.Dispose();
-        _frameReaders.Remove(sourceId);
+        _ = _frameReaders.Remove(sourceId);
       }
 
       OnStatusChanged($"無効化しました: {source.Description}");
@@ -339,7 +339,7 @@ public class CameraService : IDisposable
     List<string> activeSources = [.. ActiveSources];
     foreach (var sourceId in activeSources)
     {
-      await DisableCameraSourceAsync(sourceId);
+      _ = await DisableCameraSourceAsync(sourceId);
     }
   }
 
@@ -386,7 +386,10 @@ public class CameraService : IDisposable
   private void OnFrameArrived(MediaFrameReader sender, MediaFrameArrivedEventArgs args, AvailableCameraSource source)
   {
     // アクティブなソースかどうかをチェック
-    if (!ActiveSources.Contains(source.SourceId)) return;
+    if (!ActiveSources.Contains(source.SourceId))
+    {
+      return;
+    }
 
     _logger?.Debug("CameraService", $"Frame arrived from {source.Description} at {DateTime.Now:HH:mm:ss.fff}");
 
@@ -492,7 +495,10 @@ public class CameraService : IDisposable
   /// </summary>
   private async void OnHealthCheck(object? sender, System.Timers.ElapsedEventArgs e)
   {
-    if (!_isInitialized) return;
+    if (!_isInitialized)
+    {
+      return;
+    }
 
     var now = DateTime.Now;
     List<string> stoppedSources = [];
@@ -522,9 +528,9 @@ public class CameraService : IDisposable
         OnStatusChanged($"カメラストリームが停止しました。復旧を試行します: {source.Description}");
 
         // 一度無効化してから再有効化
-        await DisableCameraSourceAsync(sourceId);
+        _ = await DisableCameraSourceAsync(sourceId);
         await Task.Delay(1000); // 1秒待機
-        await EnableCameraSourceAsync(sourceId);
+        _ = await EnableCameraSourceAsync(sourceId);
       }
     }
   }
@@ -543,7 +549,10 @@ public class CameraService : IDisposable
   /// </summary>
   public void Dispose()
   {
-    if (_disposed) return;
+    if (_disposed)
+    {
+      return;
+    }
 
     // ヘルスチェックタイマーを停止
     _healthCheckTimer?.Stop();

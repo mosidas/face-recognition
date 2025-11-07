@@ -8,38 +8,31 @@ namespace UnifiedDetector;
 /// <summary>
 /// 物体検出と顔認証を同時に実行する統合検出器
 /// </summary>
-public sealed class UnifiedDetectorMain : IDisposable
+public sealed class UnifiedDetectorMain(
+  YoloDetector? objectDetector,
+  FaceRecognizer faceRecognizer,
+  string windowName = "Unified Detection & Recognition",
+  bool enableObjectDetection = true,
+  bool enableFaceRecognition = true) : IDisposable
 {
-  private readonly YoloDetector? _objectDetector;
-  private readonly FaceRecognizer _faceRecognizer;
-  private readonly FaceDatabase _faceDatabase;
-  private readonly bool _enableObjectDetection;
-  private readonly bool _enableFaceRecognition;
-  private readonly string _windowName;
+  private readonly YoloDetector? _objectDetector = objectDetector;
+  private readonly FaceRecognizer _faceRecognizer = faceRecognizer ?? throw new ArgumentNullException(nameof(faceRecognizer));
+  private readonly FaceDatabase _faceDatabase = new();
+  private readonly bool _enableObjectDetection = enableObjectDetection && objectDetector is not null;
+  private readonly bool _enableFaceRecognition = enableFaceRecognition;
+  private readonly string _windowName = windowName;
   private bool _disposed = false;
   private static readonly string[] SourceArray = [".jpg", ".jpeg", ".png", ".bmp"];
-
-  public UnifiedDetectorMain(
-    YoloDetector? objectDetector,
-    FaceRecognizer faceRecognizer,
-    string windowName = "Unified Detection & Recognition",
-    bool enableObjectDetection = true,
-    bool enableFaceRecognition = true)
-  {
-    _objectDetector = objectDetector;
-    _faceRecognizer = faceRecognizer ?? throw new ArgumentNullException(nameof(faceRecognizer));
-    _faceDatabase = new FaceDatabase();
-    _windowName = windowName;
-    _enableObjectDetection = enableObjectDetection && objectDetector != null;
-    _enableFaceRecognition = enableFaceRecognition;
-  }
 
   /// <summary>
   /// 顔データベースに参照顔を登録
   /// </summary>
   public async Task LoadReferenceFacesAsync(string faceImagesPath)
   {
-    if (!_enableFaceRecognition) return;
+    if (!_enableFaceRecognition)
+    {
+      return;
+    }
 
     Stopwatch totalStopwatch = Stopwatch.StartNew();
 
@@ -163,7 +156,7 @@ public sealed class UnifiedDetectorMain : IDisposable
   /// </summary>
   private async Task<UnifiedResults> ProcessFrameUnified(Mat frame)
   {
-    var objectTask = _enableObjectDetection && _objectDetector != null
+    var objectTask = _enableObjectDetection && _objectDetector is not null
         ? _objectDetector.DetectAsync(frame)
         : Task.FromResult(new List<Detection>());
 
@@ -302,7 +295,7 @@ public sealed class UnifiedDetectorMain : IDisposable
           : $"Unknown: {recognition.Similarity:F2}";
 
       // 角度情報の追加
-      if (recognition.Angles != null)
+      if (recognition.Angles is not null)
       {
         label += $" | R:{recognition.Angles.Roll:F0} P:{recognition.Angles.Pitch:F0} Y:{recognition.Angles.Yaw:F0}";
       }
@@ -321,9 +314,9 @@ public sealed class UnifiedDetectorMain : IDisposable
       Cv2.PutText(frame, label, labelPos, HersheyFonts.HersheyDuplex, 0.6, color, 2);
 
       // ランドマークの描画
-      if (recognition.Landmarks != null)
+      if (recognition.Landmarks is { } landmarks)
       {
-        DrawLandmarks(frame, recognition.Landmarks);
+        DrawLandmarks(frame, landmarks);
       }
     }
   }
@@ -387,7 +380,9 @@ public sealed class UnifiedDetectorMain : IDisposable
     List<FaceRecognitionResult> authenticatedFaces = [.. results.FaceRecognitions.Where(face => face.Similarity >= 0.4f && face.Name != "Unknown")];
 
     if (authenticatedFaces.Count == 0)
+    {
       return authenticatedSmartphones;
+    }
 
     // 「person」ラベルの物体を取得
     var personDetections = results.ObjectDetections
@@ -418,7 +413,9 @@ public sealed class UnifiedDetectorMain : IDisposable
 
           // スマートホンかどうかを判定
           if (!IsSmartphone(detection.ClassName))
+          {
             continue;
+          }
 
           Rectangle smartphoneRect = new(
               (int)detection.BBox.X,
@@ -430,7 +427,7 @@ public sealed class UnifiedDetectorMain : IDisposable
           // スマートホンがpersonの矩形内にあるかを判定
           if (DoesRectanglesOverlap(personRect, smartphoneRect))
           {
-            authenticatedSmartphones.Add(i);
+            _ = authenticatedSmartphones.Add(i);
           }
         }
       }

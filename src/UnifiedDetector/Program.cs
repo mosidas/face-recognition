@@ -9,48 +9,48 @@ internal class Program
 {
   private static async Task<int> Main(string[] args)
   {
-    var objectModelOption = new Option<string?>(
+    Option<string?> objectModelOption = new(
         "--object-model",
         description: "Path to the YOLO object detection model (optional)");
 
-    var faceDetectorModelOption = new Option<string>(
+    Option<string> faceDetectorModelOption = new(
         "--face-detector",
         description: "Path to the face detection model (required)");
 
-    var faceRecognizerModelOption = new Option<string>(
+    Option<string> faceRecognizerModelOption = new(
         "--face-recognizer",
         description: "Path to the face recognition model (required)");
 
-    var faceImagesOption = new Option<string?>(
+    Option<string?> faceImagesOption = new(
         "--face-images",
         description: "Path to folder containing reference face images (optional)");
 
-    var confidenceOption = new Option<float>(
+    Option<float> confidenceOption = new(
         "--confidence",
         getDefaultValue: () => 0.5f,
         description: "Detection confidence threshold");
 
-    var recognitionThresholdOption = new Option<float>(
+    Option<float> recognitionThresholdOption = new(
         "--recognition-threshold",
         getDefaultValue: () => 0.6f,
         description: "Face recognition similarity threshold");
 
-    var cameraIndexOption = new Option<int>(
+    Option<int> cameraIndexOption = new(
         "--camera",
         getDefaultValue: () => 0,
         description: "Camera index (default: 0)");
 
-    var enableObjectDetectionOption = new Option<bool>(
+    Option<bool> enableObjectDetectionOption = new(
         "--enable-objects",
         getDefaultValue: () => true,
         description: "Enable object detection");
 
-    var enableFaceRecognitionOption = new Option<bool>(
+    Option<bool> enableFaceRecognitionOption = new(
         "--enable-faces",
         getDefaultValue: () => true,
         description: "Enable face recognition");
 
-    var rootCommand = new RootCommand("Unified object detection and face recognition system");
+    RootCommand rootCommand = new("Unified object detection and face recognition system");
     rootCommand.AddOption(objectModelOption);
     rootCommand.AddOption(faceDetectorModelOption);
     rootCommand.AddOption(faceRecognizerModelOption);

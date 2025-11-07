@@ -15,7 +15,7 @@ public sealed class RealTimeFaceDetector(YoloFaceDetector detector, VideoCapture
 
   public void Start()
   {
-    using var frame = new Mat();
+    using Mat frame = new();
     var frameCount = 0;
     var startTime = DateTime.Now;
 

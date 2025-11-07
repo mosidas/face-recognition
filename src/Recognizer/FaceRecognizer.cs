@@ -61,7 +61,9 @@ public sealed class FaceRecognizer(
   public static float CompareFaces(float[] embedding1, float[] embedding2)
   {
     if (embedding1.Length != embedding2.Length)
+    {
       throw new ArgumentException("Embeddings must have the same dimension");
+    }
 
     var dotProduct = 0.0f;
     var norm1 = 0.0f;
@@ -122,13 +124,20 @@ public sealed class FaceRecognizer(
     var y = Math.Max(0, centerY - size / 2);
     var actualSize = Math.Min(size, Math.Min(image.Width - x, image.Height - y));
 
-    if (x + actualSize > image.Width) x = image.Width - actualSize;
-    if (y + actualSize > image.Height) y = image.Height - actualSize;
+    if (x + actualSize > image.Width)
+    {
+      x = image.Width - actualSize;
+    }
 
-    var roi = new Rect(x, y, actualSize, actualSize);
-    using var face = new Mat(image, roi);
+    if (y + actualSize > image.Height)
+    {
+      y = image.Height - actualSize;
+    }
 
-    var resizedFace = new Mat();
+    Rect roi = new(x, y, actualSize, actualSize);
+    using Mat face = new(image, roi);
+
+    Mat resizedFace = new();
     Cv2.Resize(face, resizedFace, new OpenCvSharp.Size(Constants.ImageProcessing.FaceRecognitionInputSize, Constants.ImageProcessing.FaceRecognitionInputSize));
 
     return resizedFace;
@@ -161,7 +170,7 @@ public sealed class FaceDatabase
 
   public FaceIdentificationResult IdentifyFace(float[] queryEmbedding, float threshold = 0.6f)
   {
-    var bestMatch = new FaceIdentificationResult(null, "Unknown", 0);
+    FaceIdentificationResult bestMatch = new(null, "Unknown", 0);
 
     foreach (var entry in _database.Values)
     {

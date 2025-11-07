@@ -25,17 +25,17 @@ try
   Console.WriteLine();
 
   // 顔認識器の初期化
-  using var faceRecognizer = new FaceRecognizer(detectorModelPath, recognizerModelPath, enableDebug: false);
+  using FaceRecognizer faceRecognizer = new(detectorModelPath, recognizerModelPath, enableDebug: false);
 
   // リアルタイム顔認識器の初期化
-  var realTimeRecognizer = new RealTimeFaceRecognizerMain(faceRecognizer, faceImagesPath);
+  RealTimeFaceRecognizerMain realTimeRecognizer = new(faceRecognizer, faceImagesPath);
 
   // 参照顔の読み込み
   Console.WriteLine("参照顔画像を読み込んでいます...");
   await realTimeRecognizer.LoadReferenceFacesAsync();
 
   // カメラの初期化
-  using var capture = new VideoCapture(cameraDeviceId);
+  using VideoCapture capture = new(cameraDeviceId);
   if (!capture.IsOpened())
   {
     Console.WriteLine("カメラを開けませんでした。");
@@ -43,8 +43,8 @@ try
   }
 
   // カメラの解像度設定（オプション）
-  capture.Set(VideoCaptureProperties.FrameWidth, 1280);
-  capture.Set(VideoCaptureProperties.FrameHeight, 720);
+  _ = capture.Set(VideoCaptureProperties.FrameWidth, 1280);
+  _ = capture.Set(VideoCaptureProperties.FrameHeight, 720);
 
   Console.WriteLine("\nリアルタイム顔認識を開始します。終了するには 'q' キーを押してください。");
 

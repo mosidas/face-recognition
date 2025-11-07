@@ -39,15 +39,22 @@ public static class FaceAngleCalculator
     var rightEye = landmarks.RightEye;
 
     // 目を結ぶベクトル
-    var eyeVector = new PointF(rightEye.X - leftEye.X, rightEye.Y - leftEye.Y);
+    PointF eyeVector = new(rightEye.X - leftEye.X, rightEye.Y - leftEye.Y);
 
     // 水平軸（X軸）との角度を計算
     var rollRadians = Math.Atan2(eyeVector.Y, eyeVector.X);
     var rollDegrees = (float)(rollRadians * 180.0 / Math.PI);
 
     // -180°～180°の範囲に正規化
-    if (rollDegrees > 180) rollDegrees -= 360;
-    if (rollDegrees < -180) rollDegrees += 360;
+    if (rollDegrees > 180)
+    {
+      rollDegrees -= 360;
+    }
+
+    if (rollDegrees < -180)
+    {
+      rollDegrees += 360;
+    }
 
     return rollDegrees;
   }
@@ -59,12 +66,12 @@ public static class FaceAngleCalculator
   private static float CalculatePitch(FaceLandmarks landmarks)
   {
     // 両目の中点
-    var eyeCenter = new PointF(
+    PointF eyeCenter = new(
         (landmarks.LeftEye.X + landmarks.RightEye.X) / 2,
         (landmarks.LeftEye.Y + landmarks.RightEye.Y) / 2);
 
     // 両口角の中点
-    var mouthCenter = new PointF(
+    PointF mouthCenter = new(
         (landmarks.LeftMouth.X + landmarks.RightMouth.X) / 2,
         (landmarks.LeftMouth.Y + landmarks.RightMouth.Y) / 2);
 
@@ -81,16 +88,16 @@ public static class FaceAngleCalculator
         Math.Pow(mouthCenter.Y - nose.Y, 2));
 
     // 正面向きの場合の理想的な比率（経験値ベース）
-    const float IDEAL_EYE_NOSE_TO_NOSE_MOUTH_RATIO = 1.2f;
+    const float idealEyeNoseToNoseMouthRatio = 1.2f;
 
     if (eyeToNoseDistance > 0 && noseToMouthDistance > 0)
     {
       var currentRatio = (float)(eyeToNoseDistance / noseToMouthDistance);
-      var ratioDeviation = currentRatio - IDEAL_EYE_NOSE_TO_NOSE_MOUTH_RATIO;
+      var ratioDeviation = currentRatio - idealEyeNoseToNoseMouthRatio;
 
       // 比率の変化をピッチ角に変換（経験値ベース）
-      const float PITCH_SCALE_FACTOR = 30.0f;
-      var pitchDegrees = ratioDeviation * PITCH_SCALE_FACTOR;
+      const float pitchScaleFactor = 30.0f;
+      var pitchDegrees = ratioDeviation * pitchScaleFactor;
 
       // -90°～90°の範囲に制限
       //pitchDegrees = Math.Max(-90, Math.Min(90, pitchDegrees));
@@ -112,7 +119,7 @@ public static class FaceAngleCalculator
     var nose = landmarks.Nose;
 
     // 両目の中点
-    var eyeCenter = new PointF(
+    PointF eyeCenter = new(
         (leftEye.X + rightEye.X) / 2,
         (leftEye.Y + rightEye.Y) / 2);
 
@@ -130,8 +137,8 @@ public static class FaceAngleCalculator
       var normalizedOffset = horizontalOffset / eyeDistance;
 
       // 正規化されたオフセットをヨー角に変換（経験値ベース）
-      const float YAW_SCALE_FACTOR = 60.0f;
-      var yawDegrees = (float)(normalizedOffset * YAW_SCALE_FACTOR);
+      const float yawScaleFactor = 60.0f;
+      var yawDegrees = (float)(normalizedOffset * yawScaleFactor);
 
       // -90°～90°の範囲に制限
       //yawDegrees = Math.Max(-90, Math.Min(90, yawDegrees));
@@ -167,18 +174,25 @@ public static class FaceAngleCalculator
     // 口による角度
     var leftMouth = landmarks.LeftMouth;
     var rightMouth = landmarks.RightMouth;
-    var mouthVector = new PointF(rightMouth.X - leftMouth.X, rightMouth.Y - leftMouth.Y);
+    PointF mouthVector = new(rightMouth.X - leftMouth.X, rightMouth.Y - leftMouth.Y);
     var mouthRollRadians = Math.Atan2(mouthVector.Y, mouthVector.X);
     var mouthRoll = (float)(mouthRollRadians * 180.0 / Math.PI);
 
     // 目と口の角度の重み付き平均（目の方が安定）
-    const float EYE_WEIGHT = 0.7f;
-    const float MOUTH_WEIGHT = 0.3f;
-    var weightedRoll = (eyeRoll * EYE_WEIGHT + mouthRoll * MOUTH_WEIGHT);
+    const float eyeWeight = 0.7f;
+    const float mouthWeight = 0.3f;
+    var weightedRoll = eyeRoll * eyeWeight + mouthRoll * mouthWeight;
 
     // -180°～180°の範囲に正規化
-    if (weightedRoll > 180) weightedRoll -= 360;
-    if (weightedRoll < -180) weightedRoll += 360;
+    if (weightedRoll > 180)
+    {
+      weightedRoll -= 360;
+    }
+
+    if (weightedRoll < -180)
+    {
+      weightedRoll += 360;
+    }
 
     return weightedRoll;
   }
@@ -196,10 +210,10 @@ public static class FaceAngleCalculator
     var rightMouth = landmarks.RightMouth;
 
     // 両目の中点
-    var eyeCenter = new PointF((leftEye.X + rightEye.X) / 2, (leftEye.Y + rightEye.Y) / 2);
+    PointF eyeCenter = new((leftEye.X + rightEye.X) / 2, (leftEye.Y + rightEye.Y) / 2);
 
     // 両口角の中点
-    var mouthCenter = new PointF((leftMouth.X + rightMouth.X) / 2, (leftMouth.Y + rightMouth.Y) / 2);
+    PointF mouthCenter = new((leftMouth.X + rightMouth.X) / 2, (leftMouth.Y + rightMouth.Y) / 2);
 
     // 縦方向の特徴点間距離
     var eyeToNoseY = Math.Abs(nose.Y - eyeCenter.Y);
@@ -216,12 +230,12 @@ public static class FaceAngleCalculator
       var lowerRatio = noseToMouthY / faceHeight;
 
       // 理想的な比率（正面向き時の経験値）
-      const float IDEAL_UPPER_FACE_RATIO = 0.4f;
-      const float IDEAL_LOWER_FACE_RATIO = 0.6f;
+      const float idealUpperFaceRatio = 0.4f;
+      const float idealLowerFaceRatio = 0.6f;
 
       // 比率の逸脱からピッチを推定
-      var upperDeviation = upperRatio - IDEAL_UPPER_FACE_RATIO;
-      var lowerDeviation = lowerRatio - IDEAL_LOWER_FACE_RATIO;
+      var upperDeviation = upperRatio - idealUpperFaceRatio;
+      var lowerDeviation = lowerRatio - idealLowerFaceRatio;
 
       // 上下の逸脱を統合してピッチ角を計算
       var pitchDegrees = (upperDeviation - lowerDeviation) * 100.0f;
@@ -247,8 +261,8 @@ public static class FaceAngleCalculator
     var rightMouth = landmarks.RightMouth;
 
     // 顔の中心軸（目の中点と口の中点を結ぶ線）
-    var eyeCenter = new PointF((leftEye.X + rightEye.X) / 2, (leftEye.Y + rightEye.Y) / 2);
-    var mouthCenter = new PointF((leftMouth.X + rightMouth.X) / 2, (leftMouth.Y + rightMouth.Y) / 2);
+    PointF eyeCenter = new((leftEye.X + rightEye.X) / 2, (leftEye.Y + rightEye.Y) / 2);
+    PointF mouthCenter = new((leftMouth.X + rightMouth.X) / 2, (leftMouth.Y + rightMouth.Y) / 2);
 
     // 顔の中心線のX座標
     var faceCenterX = (eyeCenter.X + mouthCenter.X) / 2;
@@ -277,17 +291,17 @@ public static class FaceAngleCalculator
       var normalizedMouthAsymmetry = mouthAsymmetry / faceWidth;
 
       // 重み付き統合（鼻の位置が最も信頼性が高い）
-      const float NOSE_WEIGHT = 0.5f;
-      const float EYE_ASYMMETRY_WEIGHT = 0.3f;
-      const float MOUTH_ASYMMETRY_WEIGHT = 0.2f;
+      const float noseWeight = 0.5f;
+      const float eyeAsymmetryWeight = 0.3f;
+      const float mouthAsymmetryWeight = 0.2f;
       var combinedAsymmetry =
-          normalizedNoseOffset * NOSE_WEIGHT +
-          normalizedEyeAsymmetry * EYE_ASYMMETRY_WEIGHT +
-          normalizedMouthAsymmetry * MOUTH_ASYMMETRY_WEIGHT;
+          normalizedNoseOffset * noseWeight +
+          normalizedEyeAsymmetry * eyeAsymmetryWeight +
+          normalizedMouthAsymmetry * mouthAsymmetryWeight;
 
       // ヨー角への変換（経験値ベース）
-      const float ADVANCED_YAW_SCALE_FACTOR = 80.0f;
-      var yawDegrees = combinedAsymmetry * ADVANCED_YAW_SCALE_FACTOR;
+      const float advancedYawScaleFactor = 80.0f;
+      var yawDegrees = combinedAsymmetry * advancedYawScaleFactor;
 
       // -90°～90°の範囲に制限
       //return Math.Max(-90, Math.Min(90, yawDegrees));

@@ -27,7 +27,7 @@ public static class FaceDetectionRenderer
   private static void DrawSingleFaceDetection(Mat frame, FaceDetection face)
   {
     // バウンディングボックス描画
-    var rect = new Rect(face.BBox.X, face.BBox.Y, face.BBox.Width, face.BBox.Height);
+    Rect rect = new(face.BBox.X, face.BBox.Y, face.BBox.Width, face.BBox.Height);
     var faceColor = GetConfidenceColor(face.Confidence);
 
     Cv2.Rectangle(frame, rect, faceColor, 2);
@@ -65,7 +65,7 @@ public static class FaceDetectionRenderer
 
     var textSize = Cv2.GetTextSize(label, font, fontScale, thickness, out int baseline);
 
-    var textRect = new Rect(
+    Rect textRect = new(
         rect.X,
         rect.Y - textSize.Height - baseline - 5,
         textSize.Width + 10,
@@ -91,17 +91,20 @@ public static class FaceDetectionRenderer
   /// </summary>
   private static void DrawFaceAngles(Mat frame, FaceDetection face, Rect faceRect)
   {
-    if (face.Angles == null) return;
+    if (face.Angles == null)
+    {
+      return;
+    }
 
     var angles = face.Angles;
 
     // 角度情報のテキスト位置（顔の右下）
-    var angleTextPos = new Point(faceRect.Right + 5, faceRect.Bottom - 40);
+    Point angleTextPos = new(faceRect.Right + 5, faceRect.Bottom - 40);
     var font = HersheyFonts.HersheySimplex;
     var fontScale = 0.5f;
     var thickness = 1;
-    var textColor = new Scalar(255, 255, 255); // 白
-    var bgColor = new Scalar(0, 0, 0, 180); // 半透明黒
+    Scalar textColor = new(255, 255, 255); // 白
+    Scalar bgColor = new(0, 0, 0, 180); // 半透明黒
 
     // 角度情報テキスト
     var angleTexts = new[]
@@ -124,7 +127,7 @@ public static class FaceDetectionRenderer
     }
 
     // 背景矩形描画
-    var bgRect = new Rect(
+    Rect bgRect = new(
         angleTextPos.X - 5,
         angleTextPos.Y - totalTextHeight - 5,
         maxTextWidth + 10,
@@ -149,14 +152,17 @@ public static class FaceDetectionRenderer
   /// </summary>
   private static void DrawFaceOrientation(Mat frame, FaceDetection face, Rect faceRect)
   {
-    if (face.Angles == null) return;
+    if (face.Angles == null)
+    {
+      return;
+    }
 
     var angles = face.Angles;
-    var center = new Point(faceRect.X + faceRect.Width / 2, faceRect.Y + faceRect.Height / 2);
+    Point center = new(faceRect.X + faceRect.Width / 2, faceRect.Y + faceRect.Height / 2);
 
     // ヨー角による左右の向き（水平矢印）
-    const float ANGLE_DISPLAY_THRESHOLD = 5.0f; // 5度以上で表示
-    if (Math.Abs(angles.Yaw) > ANGLE_DISPLAY_THRESHOLD)
+    const float angleDisplayThreshold = 5.0f; // 5度以上で表示
+    if (Math.Abs(angles.Yaw) > angleDisplayThreshold)
     {
       var yawLength = (int)(Math.Abs(angles.Yaw) * 1.5); // 角度に比例した長さ
       yawLength = Math.Min(yawLength, 50); // 最大長制限
@@ -170,7 +176,7 @@ public static class FaceDetectionRenderer
     }
 
     // ピッチ角による上下の向き（垂直矢印）
-    if (Math.Abs(angles.Pitch) > ANGLE_DISPLAY_THRESHOLD)
+    if (Math.Abs(angles.Pitch) > angleDisplayThreshold)
     {
       var pitchLength = (int)(Math.Abs(angles.Pitch) * 1.5); // 角度に比例した長さ
       pitchLength = Math.Min(pitchLength, 50); // 最大長制限
@@ -184,12 +190,12 @@ public static class FaceDetectionRenderer
     }
 
     // ロール角による傾き（回転した線）
-    if (Math.Abs(angles.Roll) > ANGLE_DISPLAY_THRESHOLD)
+    if (Math.Abs(angles.Roll) > angleDisplayThreshold)
     {
       var rollLength = 30;
       var rollRadians = angles.Roll * Math.PI / 180.0;
 
-      var rollEnd = new Point(
+      Point rollEnd = new(
           center.X + (int)(rollLength * Math.Cos(rollRadians)),
           center.Y + (int)(rollLength * Math.Sin(rollRadians))
       );
@@ -199,7 +205,7 @@ public static class FaceDetectionRenderer
 
       // ロール角度を表す小さな円弧（オプション）
       var arcRadius = 20;
-      var arcColor = new Scalar(0, 0, 255);
+      Scalar arcColor = new(0, 0, 255);
       Cv2.Ellipse(frame, center, new Size(arcRadius, arcRadius), 0, 0, angles.Roll, arcColor, 1);
     }
   }
@@ -210,24 +216,24 @@ public static class FaceDetectionRenderer
   private static void DrawLandmarks(Mat frame, FaceLandmarks landmarks)
   {
     // 目の描画（青色）
-    var eyeColor = new Scalar(255, 0, 0); // 青
+    Scalar eyeColor = new(255, 0, 0); // 青
     var eyeRadius = 3;
     Cv2.Circle(frame, new Point((int)landmarks.LeftEye.X, (int)landmarks.LeftEye.Y), eyeRadius, eyeColor, -1);
     Cv2.Circle(frame, new Point((int)landmarks.RightEye.X, (int)landmarks.RightEye.Y), eyeRadius, eyeColor, -1);
 
     // 鼻の描画（赤色）
-    var noseColor = new Scalar(0, 0, 255); // 赤
+    Scalar noseColor = new(0, 0, 255); // 赤
     var noseRadius = 3;
     Cv2.Circle(frame, new Point((int)landmarks.Nose.X, (int)landmarks.Nose.Y), noseRadius, noseColor, -1);
 
     // 口の描画（黄色）
-    var mouthColor = new Scalar(0, 255, 255); // 黄色
+    Scalar mouthColor = new(0, 255, 255); // 黄色
     var mouthRadius = 3;
     Cv2.Circle(frame, new Point((int)landmarks.LeftMouth.X, (int)landmarks.LeftMouth.Y), mouthRadius, mouthColor, -1);
     Cv2.Circle(frame, new Point((int)landmarks.RightMouth.X, (int)landmarks.RightMouth.Y), mouthRadius, mouthColor, -1);
 
     // ランドマーク間の線の描画（視覚的分かりやすさ向上）
-    var lineColor = new Scalar(128, 128, 128); // グレー
+    Scalar lineColor = new(128, 128, 128); // グレー
     var lineThickness = 1;
 
     // 目と鼻を結ぶ線
@@ -257,12 +263,12 @@ public static class FaceDetectionRenderer
     var fontScale = 0.8;
     var thickness = 2;
 
-    var textColor = new Scalar(255, 255, 255);
+    Scalar textColor = new(255, 255, 255);
 
     var textSize = Cv2.GetTextSize(infoText, font, fontScale, thickness, out int baseline);
 
     // 情報の視認性確保のため背景付き表示
-    var bgRect = new Rect(10, 10, textSize.Width + 20, textSize.Height + baseline + 10);
+    Rect bgRect = new(10, 10, textSize.Width + 20, textSize.Height + baseline + 10);
     Cv2.Rectangle(frame, bgRect, new Scalar(0, 0, 0), -1);
 
     Cv2.PutText(

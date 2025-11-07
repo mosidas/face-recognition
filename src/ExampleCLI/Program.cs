@@ -42,7 +42,7 @@ internal sealed class Program
     try
     {
       // YOLOv8n-face専用検出器を使用
-      using var faceDetector = new YoloFaceDetector(
+      using YoloFaceDetector faceDetector = new(
           modelPath,
           Constants.Thresholds.DefaultFaceDetectionThreshold,
           YoloFaceModelType.Yolov8n // 明示的にYOLOv8n指定
@@ -100,7 +100,7 @@ internal sealed class Program
 
     foreach (var face in faces)
     {
-      var rect = new OpenCvSharp.Rect(
+      OpenCvSharp.Rect rect = new(
           face.BBox.X,
           face.BBox.Y,
           face.BBox.Width,
@@ -155,7 +155,7 @@ internal sealed class Program
     }
 
     var outputPath = Path.GetFileNameWithoutExtension(imagePath) + "_faces_result.jpg";
-    OpenCvSharp.Cv2.ImWrite(outputPath, image);
+    _ = OpenCvSharp.Cv2.ImWrite(outputPath, image);
     Console.WriteLine($"結果を保存しました: {outputPath}");
   }
 
@@ -177,7 +177,7 @@ internal sealed class Program
 
     try
     {
-      using var detector = new YoloDetector(
+      using YoloDetector detector = new(
           modelPath,
           CocoClassNames.Names,
           confidenceThreshold: Constants.Thresholds.DefaultObjectDetectionThreshold,
@@ -242,7 +242,7 @@ internal sealed class Program
 
     try
     {
-      using var recognizer = new FaceRecognizer(
+      using FaceRecognizer recognizer = new(
           detectorPath,
           recognizerPath,
           detectionThreshold: Constants.Thresholds.DefaultFaceDetectionThreshold,
@@ -292,7 +292,7 @@ internal sealed class Program
 
   private static async Task RunFaceIdentification(FaceRecognizer recognizer)
   {
-    var database = new FaceDatabase();
+    FaceDatabase database = new();
 
     Console.WriteLine("\n顔データベースに人物を登録します");
     Console.Write("登録する人数: ");
@@ -312,7 +312,10 @@ internal sealed class Program
       Console.Write("画像パス: ");
       var imagePath = Console.ReadLine() ?? "";
 
-      if (!File.Exists(imagePath)) continue;
+      if (!File.Exists(imagePath))
+      {
+        continue;
+      }
 
       var faces = await recognizer.DetectFacesAsync(imagePath).ConfigureAwait(false);
       if (faces.Count > 0)
@@ -331,7 +334,10 @@ internal sealed class Program
     Console.Write("\n識別する画像のパス: ");
     var queryImage = Console.ReadLine() ?? "";
 
-    if (!File.Exists(queryImage)) return;
+    if (!File.Exists(queryImage))
+    {
+      return;
+    }
 
     Console.WriteLine("識別中...");
     var queryFaces = await recognizer.DetectFacesAsync(queryImage).ConfigureAwait(false);
@@ -363,7 +369,7 @@ internal sealed class Program
 
     foreach (var detection in detections)
     {
-      var rect = new OpenCvSharp.Rect(
+      OpenCvSharp.Rect rect = new(
           (int)detection.BBox.X,
           (int)detection.BBox.Y,
           (int)detection.BBox.Width,
@@ -384,7 +390,7 @@ internal sealed class Program
     }
 
     var outputPath = Path.GetFileNameWithoutExtension(imagePath) + Constants.Files.ResultImageSuffix;
-    OpenCvSharp.Cv2.ImWrite(outputPath, image);
+    _ = OpenCvSharp.Cv2.ImWrite(outputPath, image);
     Console.WriteLine($"結果を保存しました: {outputPath}");
 
     return Task.CompletedTask;

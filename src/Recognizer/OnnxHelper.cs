@@ -17,7 +17,7 @@ public static class OnnxHelper
     //     IntraOpNumThreads = Environment.ProcessorCount,
     //     InterOpNumThreads = 1
     // };
-    var sessionOptions = new SessionOptions
+    SessionOptions sessionOptions = new()
     {
       GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_EXTENDED,
       ExecutionMode = ExecutionMode.ORT_SEQUENTIAL,
@@ -41,7 +41,7 @@ public static class OnnxHelper
   {
     return await Task.Run(() =>
     {
-      var inputs = new List<NamedOnnxValue>();
+      List<NamedOnnxValue> inputs = [];
 
       // Handle multiple inputs for YOLOv3
       if (session.InputMetadata.Count > 1)
@@ -98,11 +98,11 @@ public static class OnnxHelper
       channels = 3;
     }
 
-    using var resized = new Mat();
+    using Mat resized = new();
     Cv2.Resize(image, resized, new OpenCvSharp.Size(width, height));
 
     // ONNXモデルはRGB入力が標準のためBGRから変換
-    using var rgb = new Mat();
+    using Mat rgb = new();
     Cv2.CvtColor(resized, rgb, ColorConversionCodes.BGR2RGB);
 
     DenseTensor<float> tensor;
@@ -167,7 +167,7 @@ public static class OnnxHelper
 
   private static InferenceResult ProcessResults(IDisposableReadOnlyCollection<DisposableNamedOnnxValue> results, OpenCvSharp.Size imageSize)
   {
-    var inferenceResult = new InferenceResult(imageSize);
+    InferenceResult inferenceResult = new(imageSize);
 
     foreach (var result in results)
     {
@@ -201,23 +201,32 @@ public static class OnnxHelper
 
   public static List<Detection> ApplyNMS(List<Detection> detections, float nmsThreshold = Constants.Thresholds.DefaultNmsThreshold)
   {
-    if (detections.Count == 0) return detections;
+    if (detections.Count == 0)
+    {
+      return detections;
+    }
 
     detections.Sort((a, b) => b.Confidence.CompareTo(a.Confidence));
 
-    var selected = new List<Detection>();
+    List<Detection> selected = [];
     var active = new bool[detections.Count];
     Array.Fill(active, true);
 
     for (int i = 0; i < detections.Count; i++)
     {
-      if (!active[i]) continue;
+      if (!active[i])
+      {
+        continue;
+      }
 
       selected.Add(detections[i]);
 
       for (int j = i + 1; j < detections.Count; j++)
       {
-        if (!active[j] || detections[i].ClassId != detections[j].ClassId) continue;
+        if (!active[j] || detections[i].ClassId != detections[j].ClassId)
+        {
+          continue;
+        }
 
         var iou = CalculateIoU(detections[i].BBox, detections[j].BBox);
         if (iou > nmsThreshold)
@@ -232,7 +241,7 @@ public static class OnnxHelper
 
   private static DenseTensor<float> CreateImageShapeTensor(OpenCvSharp.Size imageSize)
   {
-    var tensor = new DenseTensor<float>([1, 2]);
+    DenseTensor<float> tensor = new([1, 2]);
     tensor[0, 0] = imageSize.Height;
     tensor[0, 1] = imageSize.Width;
     return tensor;

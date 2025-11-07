@@ -8,31 +8,31 @@ internal class Program
 {
   private static async Task<int> Main(string[] args)
   {
-    var modelPathOption = new Option<string?>(
+    Option<string?> modelPathOption = new(
         "--model",
         description: "Path to the ONNX model file (optional)");
 
-    var modeOption = new Option<string>(
+    Option<string> modeOption = new(
         "--mode",
         getDefaultValue: () => "objects",
         description: "Detection mode: 'objects' for object detection, 'faces' for face detection with landmarks");
 
-    var confidenceOption = new Option<float>(
+    Option<float> confidenceOption = new(
         "--confidence",
         getDefaultValue: () => 0.5f,
         description: "Confidence threshold for detection");
 
-    var nmsOption = new Option<float>(
+    Option<float> nmsOption = new(
         "--nms",
         getDefaultValue: () => 0.4f,
         description: "NMS threshold for detection");
 
-    var cameraIndexOption = new Option<int>(
+    Option<int> cameraIndexOption = new(
         "--camera",
         getDefaultValue: () => 0,
         description: "Camera index (default: 0)");
 
-    var rootCommand = new RootCommand("Real-time detection with camera using OpenCV (supports objects and faces with landmarks)");
+    RootCommand rootCommand = new("Real-time detection with camera using OpenCV (supports objects and faces with landmarks)");
     rootCommand.AddOption(modelPathOption);
     rootCommand.AddOption(modeOption);
     rootCommand.AddOption(confidenceOption);
@@ -165,7 +165,7 @@ internal class Program
 
   private static void RunBasicCameraTest(VideoCapture capture)
   {
-    using var frame = new Mat();
+    using Mat frame = new();
     var frameCount = 0;
     var startTime = DateTime.Now;
 

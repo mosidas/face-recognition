@@ -5,31 +5,23 @@ using Recognizer;
 
 namespace RealTimeFaceRecognizer;
 
-public class RealTimeFaceRecognizerMain
+public class RealTimeFaceRecognizerMain(FaceRecognizer faceRecognizer, string faceImagesPath)
 {
-  private readonly FaceRecognizer _faceRecognizer;
-  private readonly string _faceImagesPath;
+  private readonly FaceRecognizer _faceRecognizer = faceRecognizer ?? throw new ArgumentNullException(nameof(faceRecognizer));
+  private readonly string _faceImagesPath = faceImagesPath ?? throw new ArgumentNullException(nameof(faceImagesPath));
   private readonly List<ReferenceEmbedding> _referenceEmbeddings = [];
   private const string WindowName = "Real-time Face Recognition";
 
-  public RealTimeFaceRecognizerMain(FaceRecognizer faceRecognizer, string faceImagesPath)
-  {
-    _faceRecognizer = faceRecognizer ?? throw new ArgumentNullException(nameof(faceRecognizer));
-    _faceImagesPath = faceImagesPath ?? throw new ArgumentNullException(nameof(faceImagesPath));
-  }
-
   public async Task LoadReferenceFacesAsync()
   {
-    var totalStopwatch = Stopwatch.StartNew();
+    Stopwatch totalStopwatch = Stopwatch.StartNew();
 
     if (!Directory.Exists(_faceImagesPath))
     {
       throw new DirectoryNotFoundException($"顔画像フォルダが見つかりません: {_faceImagesPath}");
     }
 
-    var imageFiles = Directory.GetFiles(_faceImagesPath, "*.*")
-        .Where(f => new[] { ".jpg", ".jpeg", ".png", ".bmp" }.Contains(Path.GetExtension(f).ToLower()))
-        .ToList();
+    List<string> imageFiles = [.. Directory.GetFiles(_faceImagesPath, "*.*").Where(f => new[] { ".jpg", ".jpeg", ".png", ".bmp" }.Contains(Path.GetExtension(f).ToLower()))];
 
     if (imageFiles.Count == 0)
     {
@@ -42,7 +34,7 @@ public class RealTimeFaceRecognizerMain
     {
       try
       {
-        var imageStopwatch = Stopwatch.StartNew();
+        Stopwatch imageStopwatch = Stopwatch.StartNew();
         Console.WriteLine($"[参照画像] 処理中: {Path.GetFileName(imagePath)}");
 
         using var originalImage = Cv2.ImRead(imagePath);
@@ -107,7 +99,7 @@ public class RealTimeFaceRecognizerMain
 
   public void Start(VideoCapture capture)
   {
-    using var frame = new Mat();
+    using Mat frame = new();
     var frameCount = 0;
     var startTime = DateTime.Now;
 
@@ -124,7 +116,7 @@ public class RealTimeFaceRecognizerMain
       frameCount++;
 
       // フレーム処理全体の時間計測
-      var frameStopwatch = Stopwatch.StartNew();
+      Stopwatch frameStopwatch = Stopwatch.StartNew();
 
       // 顔検出と認識
       var recognitionResults = ProcessFrame(frame).GetAwaiter().GetResult();
@@ -165,8 +157,8 @@ public class RealTimeFaceRecognizerMain
 
   private async Task<List<FaceRecognitionResult>> ProcessFrame(Mat originalFrame)
   {
-    var results = new List<FaceRecognitionResult>();
-    var totalStopwatch = Stopwatch.StartNew();
+    List<FaceRecognitionResult> results = [];
+    Stopwatch totalStopwatch = Stopwatch.StartNew();
 
     try
     {
@@ -174,7 +166,7 @@ public class RealTimeFaceRecognizerMain
       using var downscaledFrame = DownscaleImage(originalFrame, out var scaleRatio);
 
       // 顔の検出（ダウンスケール画像で実行）
-      var detectionStopwatch = Stopwatch.StartNew();
+      Stopwatch detectionStopwatch = Stopwatch.StartNew();
       var faces = await _faceRecognizer.DetectFacesAsync(downscaledFrame);
       detectionStopwatch.Stop();
 
@@ -199,17 +191,17 @@ public class RealTimeFaceRecognizerMain
         }
 
         // 顔埋め込みベクトルの抽出（元の解像度の画像から）
-        var embeddingStopwatch = Stopwatch.StartNew();
+        Stopwatch embeddingStopwatch = Stopwatch.StartNew();
         var embedding = await _faceRecognizer.ExtractFaceEmbeddingAsync(originalFrame, upscaledBBox);
         embeddingStopwatch.Stop();
 
         Console.WriteLine($"[顔{i + 1}] 埋め込み抽出時間: {embeddingStopwatch.ElapsedMilliseconds}ms");
 
         // 参照顔との比較
-        var comparisonStopwatch = Stopwatch.StartNew();
+        Stopwatch comparisonStopwatch = Stopwatch.StartNew();
         var maxSimilarity = 0.0f;
         string bestMatchSource = "";
-        var similarities = new List<float>();
+        List<float> similarities = [];
 
         foreach (var refEmbedding in _referenceEmbeddings)
         {
@@ -265,7 +257,7 @@ public class RealTimeFaceRecognizerMain
     foreach (var result in results)
     {
       // バウンディングボックスの描画
-      var rect = new Rect(
+      Rect rect = new(
           result.BoundingBox.X,
           result.BoundingBox.Y,
           result.BoundingBox.Width,
@@ -290,11 +282,11 @@ public class RealTimeFaceRecognizerMain
         label += $" | R:{result.Angles.Roll:F0} P:{result.Angles.Pitch:F0} Y:{result.Angles.Yaw:F0}";
       }
 
-      var labelPos = new OpenCvSharp.Point(rect.X, rect.Y - 10);
+      OpenCvSharp.Point labelPos = new(rect.X, rect.Y - 10);
 
       // 背景付きテキスト描画（読みやすさのため）
       var textSize = Cv2.GetTextSize(label, HersheyFonts.HersheyDuplex, 1, 2, out var baseline);
-      var textRect = new Rect(
+      Rect textRect = new(
           labelPos.X,
           labelPos.Y - textSize.Height - baseline,
           textSize.Width,
@@ -315,7 +307,7 @@ public class RealTimeFaceRecognizerMain
     var newWidth = (int)(originalImage.Width * scaleRatio);
     var newHeight = (int)(originalImage.Height * scaleRatio);
 
-    var downscaled = new Mat();
+    Mat downscaled = new();
     Cv2.Resize(originalImage, downscaled, new OpenCvSharp.Size(newWidth, newHeight));
 
     return downscaled;

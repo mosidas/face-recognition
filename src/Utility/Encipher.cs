@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace Utility;
@@ -21,8 +21,16 @@ public class Encipher
 
   public static byte[] Encrypt(byte[] key, byte[] nonce, byte[] plaintext, byte[]? aad = null)
   {
-    if (key is null || key.Length != KeySize) throw new ArgumentException("invalid key size", nameof(key));
-    if (nonce is null || nonce.Length != NonceSize) throw new ArgumentException("invalid nonce size", nameof(nonce));
+    if (key is null || key.Length != KeySize)
+    {
+      throw new ArgumentException("invalid key size", nameof(key));
+    }
+
+    if (nonce is null || nonce.Length != NonceSize)
+    {
+      throw new ArgumentException("invalid nonce size", nameof(nonce));
+    }
+
     ArgumentNullException.ThrowIfNull(plaintext);
 
     byte[] ctTag = new byte[plaintext.Length + TagSize];
@@ -37,10 +45,20 @@ public class Encipher
 
   public static byte[] Decrypt(byte[] key, byte[] nonce, byte[] ciphertextWithTag, byte[]? aad = null)
   {
-    if (key is null || key.Length != KeySize) throw new ArgumentException("invalid key size", nameof(key));
-    if (nonce is null || nonce.Length != NonceSize) throw new ArgumentException("invalid nonce size", nameof(nonce));
+    if (key is null || key.Length != KeySize)
+    {
+      throw new ArgumentException("invalid key size", nameof(key));
+    }
+
+    if (nonce is null || nonce.Length != NonceSize)
+    {
+      throw new ArgumentException("invalid nonce size", nameof(nonce));
+    }
+
     if (ciphertextWithTag is null || ciphertextWithTag.Length < TagSize)
+    {
       throw new ArgumentException("ciphertext too short", nameof(ciphertextWithTag));
+    }
 
     int n = ciphertextWithTag.Length - TagSize;
     var ctSpan = ciphertextWithTag.AsSpan(0, n);

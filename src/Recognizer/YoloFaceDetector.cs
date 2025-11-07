@@ -107,9 +107,8 @@ public sealed class YoloFaceDetector(
   /// </summary>
   private List<FaceDetection> ParseYolov8nOutput(InferenceResult result)
   {
-    var detections = new List<FaceDetection>();
     var output = result.Outputs.First().Value;
-    var predictions = output.Data;
+    _ = output.Data;
     var shape = output.Shape;
 
     // YOLOv8n-faceの実際の形式を判別
@@ -128,7 +127,7 @@ public sealed class YoloFaceDetector(
   /// </summary>
   private List<FaceDetection> ParseYolov8nTransposedOutput(InferenceResult result)
   {
-    var detections = new List<FaceDetection>();
+    List<FaceDetection> detections = [];
     var output = result.Outputs.First().Value;
     var predictions = output.Data;
     var shape = output.Shape;
@@ -184,10 +183,16 @@ public sealed class YoloFaceDetector(
         Console.WriteLine($"              鼻=({noseX:F2}, {noseY:F2}), 左口=({leftMouthX:F2}, {leftMouthY:F2}), 右口=({rightMouthX:F2}, {rightMouthY:F2})");
       }
 
-      if (confidence < _confidenceThreshold) continue;
+      if (confidence < _confidenceThreshold)
+      {
+        continue;
+      }
 
       // スケール適用前の座標で境界チェック
-      if (cx < 0 || cy < 0 || w <= 0 || h <= 0) continue;
+      if (cx < 0 || cy < 0 || w <= 0 || h <= 0)
+      {
+        continue;
+      }
 
       var scaledCx = cx * scaleX;
       var scaledCy = cy * scaleY;
@@ -197,7 +202,7 @@ public sealed class YoloFaceDetector(
       var boundingBox = CreateBoundingBox(scaledCx, scaledCy, scaledW, scaledH, result.ImageSize);
 
       // ランドマーク座標もスケール適用
-      var landmarks = new FaceLandmarks(
+      FaceLandmarks landmarks = new(
           LeftEye: new PointF(leftEyeX * scaleX, leftEyeY * scaleY),
           RightEye: new PointF(rightEyeX * scaleX, rightEyeY * scaleY),
           Nose: new PointF(noseX * scaleX, noseY * scaleY),
@@ -235,7 +240,7 @@ public sealed class YoloFaceDetector(
   /// </summary>
   private List<FaceDetection> ParseYolov8nStandardOutput(InferenceResult result)
   {
-    var detections = new List<FaceDetection>();
+    List<FaceDetection> detections = [];
     var output = result.Outputs.First().Value;
     var predictions = output.Data;
     var shape = output.Shape;
@@ -272,9 +277,15 @@ public sealed class YoloFaceDetector(
         Console.WriteLine($"検出 {i}: cx={cx:F2}, cy={cy:F2}, w={w:F2}, h={h:F2}, conf={confidence:F4}");
       }
 
-      if (confidence < _confidenceThreshold) continue;
+      if (confidence < _confidenceThreshold)
+      {
+        continue;
+      }
 
-      if (cx < 0 || cy < 0 || w <= 0 || h <= 0) continue;
+      if (cx < 0 || cy < 0 || w <= 0 || h <= 0)
+      {
+        continue;
+      }
 
       var scaledCx = cx * scaleX;
       var scaledCy = cy * scaleY;
@@ -308,7 +319,7 @@ public sealed class YoloFaceDetector(
   /// </summary>
   private List<FaceDetection> ParseYolov11Output(InferenceResult result)
   {
-    var detections = new List<FaceDetection>();
+    List<FaceDetection> detections = [];
     var output = result.Outputs.First().Value;
     var predictions = output.Data;
     var shape = output.Shape;
@@ -328,7 +339,10 @@ public sealed class YoloFaceDetector(
     for (int i = 0; i < numPredictions; i++)
     {
       var confidence = predictions[4 * numPredictions + i];
-      if (confidence < _confidenceThreshold) continue;
+      if (confidence < _confidenceThreshold)
+      {
+        continue;
+      }
 
       var cx = predictions[0 * numPredictions + i] * scaleX;
       var cy = predictions[1 * numPredictions + i] * scaleY;
@@ -371,22 +385,21 @@ public sealed class YoloFaceDetector(
 
   private static List<FaceDetection> ApplyNMS(List<FaceDetection> detections)
   {
-    var filteredDetections = detections
+    List<Detection> filteredDetections = [.. detections
         .Select(face => new Detection
         {
           ClassId = 0, // すべて同じクラス（顔）として扱う
           ClassName = "face",
           Confidence = face.Confidence,
           BBox = new RectangleF(face.BBox.X, face.BBox.Y, face.BBox.Width, face.BBox.Height)
-        })
-        .ToList();
+        })];
 
     var nmsResults = OnnxHelper.ApplyNMS(filteredDetections, Constants.Thresholds.DefaultNmsThreshold);
 
     return [.. nmsResults
             .Select(nmsResult =>
             {
-                var bbox = Rectangle.FromLTRB(
+                Rectangle bbox = Rectangle.FromLTRB(
                     (int)nmsResult.BBox.Left,
                     (int)nmsResult.BBox.Top,
                     (int)nmsResult.BBox.Right,

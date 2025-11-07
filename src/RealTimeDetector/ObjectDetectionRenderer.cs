@@ -26,7 +26,7 @@ public static class ObjectDetectionRenderer
   /// </summary>
   private static void DrawSingleDetection(Mat frame, Detection detection)
   {
-    var rect = new Rect(
+    Rect rect = new(
         (int)detection.BBox.X,
         (int)detection.BBox.Y,
         (int)detection.BBox.Width,
@@ -52,7 +52,7 @@ public static class ObjectDetectionRenderer
 
     var textSize = Cv2.GetTextSize(label, font, fontScale, thickness, out int baseline);
 
-    var textRect = new Rect(
+    Rect textRect = new(
         rect.X,
         rect.Y - textSize.Height - baseline - 5,
         textSize.Width + 10,
@@ -82,14 +82,14 @@ public static class ObjectDetectionRenderer
     var font = HersheyFonts.HersheySimplex;
     var fontScale = 0.8;
     var thickness = 2;
-
-    var bgColor = new Scalar(0, 0, 0, 128);
-    var textColor = new Scalar(255, 255, 255);
+    _ = new
+    Scalar(0, 0, 0, 128);
+    Scalar textColor = new(255, 255, 255);
 
     var textSize = Cv2.GetTextSize(infoText, font, fontScale, thickness, out int baseline);
 
     // 情報の視認性確保のため背景付き表示
-    var bgRect = new Rect(10, 10, textSize.Width + 20, textSize.Height + baseline + 10);
+    Rect bgRect = new(10, 10, textSize.Width + 20, textSize.Height + baseline + 10);
     Cv2.Rectangle(frame, bgRect, new Scalar(0, 0, 0), -1);
 
     Cv2.PutText(

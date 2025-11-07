@@ -12,7 +12,7 @@ public sealed class RealTimeObjectDetector(YoloDetector detector, VideoCapture c
 
   public void Start()
   {
-    using var frame = new Mat();
+    using Mat frame = new();
     var frameCount = 0;
     var startTime = DateTime.Now;
 
@@ -73,7 +73,7 @@ public sealed class RealTimeObjectDetector(YoloDetector detector, VideoCapture c
   {
     foreach (var detection in detections)
     {
-      var rect = new Rect(
+      Rect rect = new(
           (int)detection.BBox.X,
           (int)detection.BBox.Y,
           (int)detection.BBox.Width,
