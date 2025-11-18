@@ -4,7 +4,7 @@ root = true
 charset = utf-8
 end_of_line = unset
 indent_style = space
-indent_size = 2
+indent_size = 4
 trim_trailing_whitespace = true
 insert_final_newline = true
 
@@ -365,3 +365,8 @@ dotnet_naming_style.s_camelcase.required_suffix =
 dotnet_naming_style.s_camelcase.word_separator =
 dotnet_naming_style.s_camelcase.capitalization = camel_case
 
+# code metrics rules
+dotnet_diagnostic.CA1501.severity = warning # 継承階層
+dotnet_diagnostic.CA1502.severity = warning # 循環的複雑度
+dotnet_diagnostic.CA1505.severity = warning # 保守容易性指数
+dotnet_diagnostic.CA1506.severity = warning # クラス結合度

@@ -8,75 +8,75 @@ namespace RealTimeDetector;
 /// </summary>
 public sealed class RealTimeFaceDetector(YoloFaceDetector detector, VideoCapture capture, string windowName = "Real-time Face Detection") : IDisposable
 {
-  private readonly YoloFaceDetector _detector = detector ?? throw new ArgumentNullException(nameof(detector));
-  private readonly VideoCapture _capture = capture ?? throw new ArgumentNullException(nameof(capture));
-  private readonly string _windowName = windowName;
-  private bool _disposed = false;
+    private readonly YoloFaceDetector _detector = detector ?? throw new ArgumentNullException(nameof(detector));
+    private readonly VideoCapture _capture = capture ?? throw new ArgumentNullException(nameof(capture));
+    private readonly string _windowName = windowName;
+    private bool _disposed = false;
 
-  public void Start()
-  {
-    using Mat frame = new();
-    var frameCount = 0;
-    var startTime = DateTime.Now;
-
-    while (true)
+    public void Start()
     {
-      if (!_capture.Read(frame) || frame.Empty())
-      {
-        Console.WriteLine("Failed to read frame from camera");
-        break;
-      }
+        using Mat frame = new();
+        var frameCount = 0;
+        var startTime = DateTime.Now;
 
-      frameCount++;
+        while (true)
+        {
+            if (!_capture.Read(frame) || frame.Empty())
+            {
+                Console.WriteLine("Failed to read frame from camera");
+                break;
+            }
 
-      var faces = DetectFaces(frame);
-      FaceDetectionRenderer.DrawFaceDetections(frame, faces);
-      Cv2.ImShow(_windowName, frame);
+            frameCount++;
 
-      // ユーザー体験向上のため定期的にパフォーマンス表示
-      if (frameCount % 30 == 0)
-      {
-        var elapsed = DateTime.Now - startTime;
-        var currentFps = frameCount / elapsed.TotalSeconds;
-        Console.WriteLine($"Face Detection FPS: {currentFps:F1}, Faces: {faces.Count}");
-      }
+            var faces = DetectFaces(frame);
+            FaceDetectionRenderer.DrawFaceDetections(frame, faces);
+            Cv2.ImShow(_windowName, frame);
 
-      var key = Cv2.WaitKey(1);
-      if (key == 'q' || key == 'Q' || key == 27)
-      {
-        Console.WriteLine("Quit requested by user");
-        break;
-      }
-    }
-  }
+            // ユーザー体験向上のため定期的にパフォーマンス表示
+            if (frameCount % 30 == 0)
+            {
+                var elapsed = DateTime.Now - startTime;
+                var currentFps = frameCount / elapsed.TotalSeconds;
+                Console.WriteLine($"Face Detection FPS: {currentFps:F1}, Faces: {faces.Count}");
+            }
 
-  private List<FaceDetection> DetectFaces(Mat frame)
-  {
-    if (frame.Empty() || frame.IsDisposed)
-    {
-      return [];
+            var key = Cv2.WaitKey(1);
+            if (key == 'q' || key == 'Q' || key == 27)
+            {
+                Console.WriteLine("Quit requested by user");
+                break;
+            }
+        }
     }
 
-    try
+    private List<FaceDetection> DetectFaces(Mat frame)
     {
-      // I/O処理削減によるリアルタイム性向上のためMat直接使用
-      var detectionTask = _detector.DetectAsync(frame);
-      var result = detectionTask.GetAwaiter().GetResult();
+        if (frame.Empty() || frame.IsDisposed)
+        {
+            return [];
+        }
 
-      return result ?? [];
-    }
-    catch (Exception ex)
-    {
-      Console.WriteLine($"Face detection error: {ex.Message}");
-      return [];
-    }
-  }
+        try
+        {
+            // I/O処理削減によるリアルタイム性向上のためMat直接使用
+            var detectionTask = _detector.DetectAsync(frame);
+            var result = detectionTask.GetAwaiter().GetResult();
 
-  public void Dispose()
-  {
-    if (!_disposed)
-    {
-      _disposed = true;
+            return result ?? [];
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Face detection error: {ex.Message}");
+            return [];
+        }
     }
-  }
+
+    public void Dispose()
+    {
+        if (!_disposed)
+        {
+            _disposed = true;
+        }
+    }
 }

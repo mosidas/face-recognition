@@ -4,69 +4,69 @@ namespace Utility;
 
 public class Encipher
 {
-  public const int KeySize = 32; // 256-bit
-  public const int NonceSize = 12; // AES-GCM推奨
-  public const int TagSize = 16;   // 128-bit
+    public const int KeySize = 32; // 256-bit
+    public const int NonceSize = 12; // AES-GCM推奨
+    public const int TagSize = 16;   // 128-bit
 
-  public static byte[] GenerateKey()
-  {
-    return RandomNumberGenerator.GetBytes(KeySize);
-  }
-
-  public static byte[] GenerateNonce()
-  {
-    return RandomNumberGenerator.GetBytes(NonceSize);
-  }
-
-  public static byte[] Encrypt(byte[] key, byte[] nonce, byte[] plaintext, byte[]? aad = null)
-  {
-    if (key is null || key.Length != KeySize)
+    public static byte[] GenerateKey()
     {
-      throw new ArgumentException("invalid key size", nameof(key));
+        return RandomNumberGenerator.GetBytes(KeySize);
     }
 
-    if (nonce is null || nonce.Length != NonceSize)
+    public static byte[] GenerateNonce()
     {
-      throw new ArgumentException("invalid nonce size", nameof(nonce));
+        return RandomNumberGenerator.GetBytes(NonceSize);
     }
 
-    ArgumentNullException.ThrowIfNull(plaintext);
-
-    byte[] ctTag = new byte[plaintext.Length + TagSize];
-    var ctSpan = ctTag.AsSpan(0, plaintext.Length);
-    var tagSpan = ctTag.AsSpan(plaintext.Length, TagSize);
-
-    using AesGcm gcm = new(key, TagSize);
-    gcm.Encrypt(nonce, plaintext, ctSpan, tagSpan, aad);
-
-    return ctTag; // ciphertext||tag
-  }
-
-  public static byte[] Decrypt(byte[] key, byte[] nonce, byte[] ciphertextWithTag, byte[]? aad = null)
-  {
-    if (key is null || key.Length != KeySize)
+    public static byte[] Encrypt(byte[] key, byte[] nonce, byte[] plaintext, byte[]? aad = null)
     {
-      throw new ArgumentException("invalid key size", nameof(key));
+        if (key is null || key.Length != KeySize)
+        {
+            throw new ArgumentException("invalid key size", nameof(key));
+        }
+
+        if (nonce is null || nonce.Length != NonceSize)
+        {
+            throw new ArgumentException("invalid nonce size", nameof(nonce));
+        }
+
+        ArgumentNullException.ThrowIfNull(plaintext);
+
+        byte[] ctTag = new byte[plaintext.Length + TagSize];
+        var ctSpan = ctTag.AsSpan(0, plaintext.Length);
+        var tagSpan = ctTag.AsSpan(plaintext.Length, TagSize);
+
+        using AesGcm gcm = new(key, TagSize);
+        gcm.Encrypt(nonce, plaintext, ctSpan, tagSpan, aad);
+
+        return ctTag; // ciphertext||tag
     }
 
-    if (nonce is null || nonce.Length != NonceSize)
+    public static byte[] Decrypt(byte[] key, byte[] nonce, byte[] ciphertextWithTag, byte[]? aad = null)
     {
-      throw new ArgumentException("invalid nonce size", nameof(nonce));
+        if (key is null || key.Length != KeySize)
+        {
+            throw new ArgumentException("invalid key size", nameof(key));
+        }
+
+        if (nonce is null || nonce.Length != NonceSize)
+        {
+            throw new ArgumentException("invalid nonce size", nameof(nonce));
+        }
+
+        if (ciphertextWithTag is null || ciphertextWithTag.Length < TagSize)
+        {
+            throw new ArgumentException("ciphertext too short", nameof(ciphertextWithTag));
+        }
+
+        int n = ciphertextWithTag.Length - TagSize;
+        var ctSpan = ciphertextWithTag.AsSpan(0, n);
+        var tagSpan = ciphertextWithTag.AsSpan(n, TagSize);
+
+        byte[] pt = new byte[n];
+        using AesGcm gcm = new(key, TagSize);
+        gcm.Decrypt(nonce, ctSpan, tagSpan, pt, aad);
+
+        return pt;
     }
-
-    if (ciphertextWithTag is null || ciphertextWithTag.Length < TagSize)
-    {
-      throw new ArgumentException("ciphertext too short", nameof(ciphertextWithTag));
-    }
-
-    int n = ciphertextWithTag.Length - TagSize;
-    var ctSpan = ciphertextWithTag.AsSpan(0, n);
-    var tagSpan = ciphertextWithTag.AsSpan(n, TagSize);
-
-    byte[] pt = new byte[n];
-    using AesGcm gcm = new(key, TagSize);
-    gcm.Decrypt(nonce, ctSpan, tagSpan, pt, aad);
-
-    return pt;
-  }
 }
